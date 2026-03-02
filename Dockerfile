@@ -1,6 +1,9 @@
 # Imagen con Node.js (soluciona "npm: command not found")
 FROM node:20-alpine
 
+# OpenSSL para Prisma (evita "Prisma failed to detect the libssl/openssl version")
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 # Copiar archivos de dependencias
