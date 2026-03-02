@@ -1,0 +1,74 @@
+---
+description: Convenciones UUID para scripts SQL de Supabase
+globs: supabase/**/*.sql, **/rebuild/**/*.sql
+alwaysApply: false
+---
+
+# Esquema UUID - Base de datos Supabase
+
+Al crear o modificar scripts SQL para este proyecto, **siempre usa UUID** para IDs y referencias entre tablas.
+
+## Reglas obligatorias
+
+### 1. empresa_id siempre UUID
+```sql
+-- ✅ CORRECTO
+empresa_id UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE
+empresa_id UUID REFERENCES empresas(id) ON DELETE SET NULL
+
+-- ❌ INCORRECTO
+empresa_id VARCHAR(255)
+empresa_id TEXT
+```
+
+### 2. get_user_empresa_id() retorna UUID
+```sql
+-- ✅ CORRECTO
+CREATE OR REPLACE FUNCTION public.get_user_empresa_id()
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public AS $$
+BEGIN
+  RETURN (SELECT empresa_id FROM public.perfiles WHERE user_id = auth.uid() LIMIT 1);
+END;
+$$;
+
+-- ❌ INCORRECTO
+RETURNS VARCHAR(255)
+RETURNS TEXT
+```
+
+### 3. Políticas RLS comparan UUID con UUID
+```sql
+-- ✅ CORRECTO
+USING (empresa_id = public.get_user_empresa_id())
+USING (id = public.get_user_empresa_id())
+
+-- ❌ INCORRECTO (evitar casts innecesarios o tipos mixtos)
+USING (empresa_id::text = get_user_empresa_id())
+```
+
+### 4. Tablas que usan empresa_id como UUID
+- empresas (id UUID)
+- sucursales (empresa_id UUID FK)
+- motores (empresa_id UUID FK)
+- clientes (empresa_id UUID FK)
+- ventas (empresa_id UUID FK)
+- pagos (empresa_id UUID FK)
+- perfiles (empresa_id UUID FK, nullable para super_admin)
+- rutas (empresa_id UUID FK)
+- cajas (empresa_id UUID FK)
+- actividad_logs (empresa_id UUID FK)
+
+### 5. No usar compania_id ni app_id como alternativa
+El esquema unificado usa solo `empresa_id UUID` para multi-tenant. No añadir `compania_id VARCHAR` ni `app_id TEXT` para relaciones empresa.
+
+### 6. Unicidad por empresa
+```sql
+-- ✅ CORRECTO (empresa_id es UUID)
+CREATE UNIQUE INDEX idx_cliente_empresa_cedula ON clientes (empresa_id, cedula);
+```
+
+## Referencia rápida
+- `empresas.id` → UUID (PK)
+- Todas las FK a empresas → `empresa_id UUID REFERENCES empresas(id)`
+- `get_user_empresa_id()` → RETURNS UUID
+- super_admin → `empresa_id = NULL` en perfiles

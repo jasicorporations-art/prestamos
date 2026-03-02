@@ -1,0 +1,34 @@
+═══════════════════════════════════════════════════════════════
+  URL DE LA APLICACIÓN EN VERCEL
+═══════════════════════════════════════════════════════════════
+
+📍 URL PRINCIPAL:
+   https://sisi-seven.vercel.app
+
+═══════════════════════════════════════════════════════════════
+  ENDPOINTS DE LA API
+═══════════════════════════════════════════════════════════════
+
+📧 API de Envío de Recordatorios:
+   https://sisi-seven.vercel.app/api/enviar-recordatorio
+
+📋 API de Recordatorios (GET):
+   https://sisi-seven.vercel.app/api/recordatorios
+
+═══════════════════════════════════════════════════════════════
+  ACCESO DIRECTO
+═══════════════════════════════════════════════════════════════
+
+Dashboard del proyecto:
+https://vercel.com/johns-projects-9d4c1d75/sisi
+
+Deployments:
+https://vercel.com/johns-projects-9d4c1d75/sisi/deployments
+
+Settings:
+https://vercel.com/johns-projects-9d4c1d75/sisi/settings
+
+═══════════════════════════════════════════════════════════════
+
+
+

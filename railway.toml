@@ -1,0 +1,11 @@
+# Railway: build y start para Next.js + Prisma
+# https://docs.railway.app/reference/build-and-start-commands
+
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "npx prisma migrate deploy && npm run start"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

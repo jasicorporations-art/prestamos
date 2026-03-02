@@ -1,0 +1,52 @@
+═══════════════════════════════════════════════════════════════
+  URLs DE TU APLICACIÓN EN VERCEL
+═══════════════════════════════════════════════════════════════
+
+📍 URL PRINCIPAL (Usa esta):
+   https://sisi-seven.vercel.app
+
+📍 URL ALTERNATIVA:
+   https://sisi-31uqoht0w-johns-projects-9d4c1d75.vercel.app
+
+📍 TU DOMINIO ORIGINAL:
+   nextjs-boilerplate-lac-three-9wpilmv15v.vercel.app
+
+═══════════════════════════════════════════════════════════════
+  CÓMO ENCONTRARLAS EN VERCEL
+═══════════════════════════════════════════════════════════════
+
+1. Ve a: https://vercel.com/dashboard
+
+2. Busca tu proyecto: "sisi" o "nextjs-boilerplate"
+
+3. Haz clic en el proyecto
+
+4. Verás las URLs en la parte superior de la página
+
+O también:
+
+1. Ve a: https://vercel.com/dashboard
+
+2. Haz clic en "Deployments" (menú superior)
+
+3. Busca el deployment más reciente (arriba, estado "Ready")
+
+4. Ahí verás la URL
+
+═══════════════════════════════════════════════════════════════
+  ACCESO DIRECTO
+═══════════════════════════════════════════════════════════════
+
+Dashboard del proyecto:
+https://vercel.com/johns-projects-9d4c1d75/sisi
+
+Deployments:
+https://vercel.com/johns-projects-9d4c1d75/sisi/deployments
+
+Settings:
+https://vercel.com/johns-projects-9d4c1d75/sisi/settings
+
+═══════════════════════════════════════════════════════════════
+
+
+

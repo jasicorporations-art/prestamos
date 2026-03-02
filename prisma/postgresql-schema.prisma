@@ -1,0 +1,14 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo mínimo para que Prisma genere el cliente.
+// Para tener todos los modelos de tu DB, usa el esquema principal: prisma/schema.prisma
+model PlaceholderPostgres {
+  id String @id @default(uuid())
+}

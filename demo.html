@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JASICORPORATIONS GESTION DE PRESTAMOS - Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background: white;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navegación -->
+    <nav class="fixed top-0 left-0 right-0 bg-white shadow-md z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-blue-600">
+                        JASICORPORATIONS GESTION DE PRESTAMOS
+                    </h1>
+                </div>
+                <div class="flex space-x-1">
+                    <button onclick="mostrarSeccion('dashboard')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">
+                        Dashboard
+                    </button>
+                    <button onclick="mostrarSeccion('motores')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+                        Motores
+                    </button>
+                    <button onclick="mostrarSeccion('clientes')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+                        Clientes
+                    </button>
+                    <button onclick="mostrarSeccion('ventas')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+                        Ventas
+                    </button>
+                    <button onclick="mostrarSeccion('pagos')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+                        Pagos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="min-h-screen pt-16">
+        <!-- Dashboard -->
+        <div id="dashboard" class="seccion max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Motores Disponibles</p>
+                            <p class="text-3xl font-bold text-gray-900 mt-2" id="motores-disponibles">5</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Total por Cobrar</p>
+                            <p class="text-3xl font-bold text-gray-900 mt-2">RD$ <span id="total-cobrar">125,000</span></p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Ventas del Mes</p>
+                            <p class="text-3xl font-bold text-gray-900 mt-2">RD$ <span id="ventas-mes">85,000</span></p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-full">
+                            <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-900">Ventas Recientes</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motor</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Saldo Pendiente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tabla-ventas">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Juan Pérez</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Honda - ABC-1234</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 45,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 30,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">15/01/2024</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">María García</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Yamaha - XYZ-5678</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 40,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 40,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">20/01/2024</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Motores -->
+        <div id="motores" class="seccion hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Gestión de Motores</h1>
+                <button onclick="abrirModalMotor()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    + Nuevo Motor
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Matrícula</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Número de Préstamo</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio de Venta</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tabla-motores">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Honda</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">ABC-1234</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">CHS001234</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 45,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Disponible</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-blue-600 hover:text-blue-900">Editar</button>
+                                    <button class="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Yamaha</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">XYZ-5678</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">CHS005678</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 40,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Vendido</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-blue-600 hover:text-blue-900">Editar</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Suzuki</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">DEF-9012</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">CHS009012</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 35,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Disponible</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-blue-600 hover:text-blue-900">Editar</button>
+                                    <button class="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clientes -->
+        <div id="clientes" class="seccion hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Gestión de Clientes</h1>
+                <button onclick="abrirModalCliente()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    + Nuevo Cliente
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre Completo</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cédula</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dirección</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Garante</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tabla-clientes">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Juan Pérez</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">001-1234567-8</td>
+                                <td class="px-6 py-4 text-sm text-gray-900">Calle Principal #123, Santo Domingo</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Carlos Pérez</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-blue-600 hover:text-blue-900">Editar</button>
+                                    <button class="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">María García</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">002-2345678-9</td>
+                                <td class="px-6 py-4 text-sm text-gray-900">Av. Independencia #456, Santiago</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Roberto García</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-blue-600 hover:text-blue-900">Editar</button>
+                                    <button class="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ventas -->
+        <div id="ventas" class="seccion hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Gestión de Ventas</h1>
+                <button onclick="abrirModalVenta()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    + Nueva Venta
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motor</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuotas</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Saldo Pendiente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tabla-ventas-detalle">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Juan Pérez</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Honda - ABC-1234</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 45,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">12</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 30,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">15/01/2024</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button onclick="verFactura(1)" class="text-blue-600 hover:text-blue-900">Ver Factura</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">María García</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Yamaha - XYZ-5678</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 40,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">10</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 40,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">20/01/2024</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button onclick="verFactura(2)" class="text-blue-600 hover:text-blue-900">Ver Factura</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagos -->
+        <div id="pagos" class="seccion hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Gestión de Pagos</h1>
+                <button onclick="abrirModalPago()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    + Registrar Pago
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motor</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuota</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha de Pago</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tabla-pagos">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Juan Pérez</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Honda - ABC-1234</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RD$ 15,000</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">1</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">15/01/2024</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-red-600 hover:text-red-900">Eliminar</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal para Motor -->
+    <div id="modal-motor" class="hidden fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick="cerrarModal('modal-motor')"></div>
+            <div class="bg-white rounded-lg max-w-md w-full p-6 relative z-10">
+                <h3 class="text-lg font-medium mb-4">Nuevo Motor</h3>
+                <form onsubmit="guardarMotor(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                        <input type="text" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Matrícula</label>
+                        <input type="text" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Número de Préstamo</label>
+                        <input type="text" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Precio de Venta</label>
+                        <input type="number" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                        <select class="w-full px-3 py-2 border rounded-md">
+                            <option>Disponible</option>
+                            <option>Vendido</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="cerrarModal('modal-motor')" class="px-4 py-2 bg-gray-200 rounded-md">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Cliente -->
+    <div id="modal-cliente" class="hidden fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick="cerrarModal('modal-cliente')"></div>
+            <div class="bg-white rounded-lg max-w-md w-full p-6 relative z-10">
+                <h3 class="text-lg font-medium mb-4">Nuevo Cliente</h3>
+                <form onsubmit="guardarCliente(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+                        <input type="text" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cédula</label>
+                        <input type="text" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                        <input type="text" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Garante</label>
+                        <input type="text" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="cerrarModal('modal-cliente')" class="px-4 py-2 bg-gray-200 rounded-md">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Venta -->
+    <div id="modal-venta" class="hidden fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick="cerrarModal('modal-venta')"></div>
+            <div class="bg-white rounded-lg max-w-lg w-full p-6 relative z-10">
+                <h3 class="text-lg font-medium mb-4">Nueva Venta</h3>
+                <form onsubmit="guardarVenta(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Motor</label>
+                        <select required class="w-full px-3 py-2 border rounded-md">
+                            <option>Honda - ABC-1234</option>
+                            <option>Suzuki - DEF-9012</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                        <select required class="w-full px-3 py-2 border rounded-md">
+                            <option>Juan Pérez</option>
+                            <option>María García</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad de Cuotas</label>
+                        <input type="number" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="cerrarModal('modal-venta')" class="px-4 py-2 bg-gray-200 rounded-md">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Crear Venta</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Pago -->
+    <div id="modal-pago" class="hidden fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick="cerrarModal('modal-pago')"></div>
+            <div class="bg-white rounded-lg max-w-md w-full p-6 relative z-10">
+                <h3 class="text-lg font-medium mb-4">Registrar Pago</h3>
+                <form onsubmit="guardarPago(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Venta</label>
+                        <select required class="w-full px-3 py-2 border rounded-md">
+                            <option>Juan Pérez - Honda ABC-1234 (Saldo: RD$ 30,000)</option>
+                            <option>María García - Yamaha XYZ-5678 (Saldo: RD$ 40,000)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Monto del Pago</label>
+                        <input type="number" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Número de Cuota (Opcional)</label>
+                        <input type="number" class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Pago</label>
+                        <input type="date" required class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="cerrarModal('modal-pago')" class="px-4 py-2 bg-gray-200 rounded-md">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Registrar Pago</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Factura (se muestra al hacer clic en Ver Factura) -->
+    <div id="factura" class="hidden seccion max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="no-print mb-4">
+            <button onclick="volverAVentas()" class="px-4 py-2 bg-gray-200 rounded-md mb-2">← Volver a Ventas</button>
+            <button onclick="window.print()" class="px-4 py-2 bg-blue-600 text-white rounded-md">🖨️ Imprimir Factura</button>
+        </div>
+        <div class="bg-white shadow-lg p-8 print:shadow-none">
+            <div class="text-center mb-8 border-b-2 border-gray-300 pb-6">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">JASICORPORATIONS GESTION DE PRESTAMOS</h1>
+                <p class="text-gray-600">Factura de Venta</p>
+            </div>
+            <div class="mb-6">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Número de Factura:</p>
+                        <p class="font-semibold">FAC-001234</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-600">Fecha de Venta:</p>
+                        <p class="font-semibold">15/01/2024</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-6 border-b border-gray-200 pb-4">
+                <h2 class="text-lg font-semibold text-gray-900 mb-3">Detalles del Motor</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Marca:</p>
+                        <p class="font-medium">Honda</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Matrícula:</p>
+                        <p class="font-medium">ABC-1234</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Número de Préstamo:</p>
+                        <p class="font-medium">CHS001234</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Precio de Venta:</p>
+                        <p class="font-medium">RD$ 45,000</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-6 border-b border-gray-200 pb-4">
+                <h2 class="text-lg font-semibold text-gray-900 mb-3">Información del Cliente</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Nombre Completo:</p>
+                        <p class="font-medium">Juan Pérez</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Cédula:</p>
+                        <p class="font-medium">001-1234567-8</p>
+                    </div>
+                    <div class="col-span-2">
+                        <p class="text-sm text-gray-600">Dirección:</p>
+                        <p class="font-medium">Calle Principal #123, Santo Domingo</p>
+                    </div>
+                    <div class="col-span-2">
+                        <p class="text-sm text-gray-600">Garante:</p>
+                        <p class="font-medium">Carlos Pérez</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-6 border-b border-gray-200 pb-4">
+                <h2 class="text-lg font-semibold text-gray-900 mb-3">Términos de Financiamiento</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Monto Total:</p>
+                        <p class="font-medium text-lg">RD$ 45,000</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Cantidad de Cuotas:</p>
+                        <p class="font-medium text-lg">12</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Valor por Cuota:</p>
+                        <p class="font-medium">RD$ 3,750.00</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-md">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Total Pagado:</p>
+                        <p class="font-semibold text-lg text-green-600">RD$ 15,000</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Saldo Pendiente:</p>
+                        <p class="font-semibold text-lg text-red-600">RD$ 30,000</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
+                <p>Gracias por su compra</p>
+                <p class="mt-2">JASICORPORATIONS GESTION DE PRESTAMOS</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Datos simulados
+        let motores = [
+            { marca: 'Honda', matricula: 'ABC-1234', chasis: 'CHS001234', precio: 45000, estado: 'Disponible' },
+            { marca: 'Yamaha', matricula: 'XYZ-5678', chasis: 'CHS005678', precio: 40000, estado: 'Vendido' },
+            { marca: 'Suzuki', matricula: 'DEF-9012', chasis: 'CHS009012', precio: 35000, estado: 'Disponible' }
+        ];
+
+        // Funciones de navegación
+        function mostrarSeccion(seccion) {
+            document.querySelectorAll('.seccion').forEach(s => s.classList.add('hidden'));
+            document.getElementById(seccion).classList.remove('hidden');
+            
+            // Actualizar botones de navegación
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-100', 'text-blue-700');
+                btn.classList.add('text-gray-600');
+            });
+            event.target.classList.add('bg-blue-100', 'text-blue-700');
+            event.target.classList.remove('text-gray-600');
+        }
+
+        // Funciones de modales
+        function abrirModalMotor() {
+            document.getElementById('modal-motor').classList.remove('hidden');
+        }
+
+        function abrirModalCliente() {
+            document.getElementById('modal-cliente').classList.remove('hidden');
+        }
+
+        function abrirModalVenta() {
+            document.getElementById('modal-venta').classList.remove('hidden');
+        }
+
+        function abrirModalPago() {
+            document.getElementById('modal-pago').classList.remove('hidden');
+        }
+
+        function cerrarModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // Funciones de guardado (simuladas)
+        function guardarMotor(e) {
+            e.preventDefault();
+            alert('Motor guardado (funcionalidad simulada)');
+            cerrarModal('modal-motor');
+        }
+
+        function guardarCliente(e) {
+            e.preventDefault();
+            alert('Cliente guardado (funcionalidad simulada)');
+            cerrarModal('modal-cliente');
+        }
+
+        function guardarVenta(e) {
+            e.preventDefault();
+            alert('Venta creada (funcionalidad simulada)');
+            cerrarModal('modal-venta');
+        }
+
+        function guardarPago(e) {
+            e.preventDefault();
+            alert('Pago registrado (funcionalidad simulada)');
+            cerrarModal('modal-pago');
+        }
+
+        function verFactura(id) {
+            mostrarSeccion('factura');
+            document.getElementById('factura').classList.remove('hidden');
+        }
+
+        function volverAVentas() {
+            mostrarSeccion('ventas');
+        }
+
+        // Inicializar en Dashboard
+        window.onload = function() {
+            mostrarSeccion('dashboard');
+        };
+    </script>
+</body>
+</html>
+
+
+

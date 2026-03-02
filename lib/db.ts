@@ -1,0 +1,17 @@
+/**
+ * Cliente Prisma singleton para Next.js.
+ * Evita crear múltiples instancias en desarrollo (hot reload) y en producción.
+ * Usar solo en server-side (API routes, Server Components, getServerSideProps).
+ */
+
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  })
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma

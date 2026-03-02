@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.jasicorporations.prestamos.twa",
+      "sha256_cert_fingerprints": [
+        "4D:37:84:50:C4:AE:D8:E1:1E:9F:A5:EE:25:B8:65:BC:49:68:2B:C7:74:36:58:E6:A4:21:3A:68:88:5F:A7:0F"
+      ]
+    }
+  }
+]

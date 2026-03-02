@@ -1,0 +1,37 @@
+═══════════════════════════════════════════════════════════════
+  URL DE TU PROYECTO EN VERCEL
+═══════════════════════════════════════════════════════════════
+
+📍 URL PRINCIPAL (Preview):
+   https://electrojasicorporationscom2-7x9uv4haf-johns-projects-9d4c1d75.vercel.app
+
+📍 URL DE PRODUCCIÓN (cuando ejecutes vercel --prod):
+   Se generará automáticamente cuando despliegues a producción
+
+📍 NOMBRE DEL PROYECTO:
+   electro.jasicorporations.com2
+
+📍 DASHBOARD DEL PROYECTO:
+   https://vercel.com/johns-projects-9d4c1d75/electro.jasicorporations.com2
+
+═══════════════════════════════════════════════════════════════
+  CÓMO DESPLEGAR A PRODUCCIÓN
+═══════════════════════════════════════════════════════════════
+
+Para desplegar a producción, ejecuta:
+   vercel --prod
+
+O usa el script:
+   deploy.bat
+
+═══════════════════════════════════════════════════════════════
+  ACCESO RÁPIDO
+═══════════════════════════════════════════════════════════════
+
+1. Copia esta URL y pégala en tu navegador:
+   https://electrojasicorporationscom2-7x9uv4haf-johns-projects-9d4c1d75.vercel.app
+
+2. O ve directamente al dashboard:
+   https://vercel.com/johns-projects-9d4c1d75/electro.jasicorporations.com2
+
+═══════════════════════════════════════════════════════════════

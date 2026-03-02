@@ -1,0 +1,120 @@
+---
+pid: 14056
+cwd: |
+  C:\Users\Owner\.cursor
+---
+PS C:\Users\Owner\.cursor> npm run build
+npm : No se puede cargar el archivo C:\Program Files\nodejs\npm.ps1 porque la 
+https:/go.microsoft.com/fwlink/?LinkID=135170.
++ npm run build
++ ~~~
+    + CategoryInfo          : SecurityError: (:) [], PSSecurityException        
+    + FullyQualifiedErrorId : UnauthorizedAccess
+PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor> cmd /c npm run build
+> jasicorporations-gestion-prestamos@1.0.0 build
+> next build
+
+¿Desea terminar el trabajo por lotes (S/N)? cmd /c "if exist .next rmdir /s /q .next && npm run build"
+¿Desea terminar el trabajo por lotes (S/N)? q^C
+PS C:\Users\Owner\.cursor> cmd /c rmdir /s /q .next 2>nul & npm run build       
+En línea: 1 Carácter: 32
++ cmd /c rmdir /s /q .next 2>nul & npm run build
++                                ~
+No se permite usar el carácter de Y comercial (&). El operador & está 
+comillas dobles ("&") para pasarlo como parte de una cadena.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordEx  
+   ception
+    + FullyQualifiedErrorId : AmpersandNotAllowed
+ 
+PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor> if (Test-Path .next) { Remove-Item -Recurse -Force .next }
+PS C:\Users\Owner\.cursor> cmd /c npm.cmd run build
+
+> jasicorporations-gestion-prestamos@1.0.0 build
+> next build
+
+¿Desea terminar el trabajo por lotes (S/N)? cmd /c build-check.bat
+¿Desea terminar el trabajo por lotes (S/N)? q^C
+PS C:\Users\Owner\.cursor> npx next build
+npx : No se puede cargar el archivo C:\Program Files\nodejs\npx.ps1 porque la   
+ejecución de scripts está deshabilitada en este sistema. Para obtener más       
+información, consulta el tema about_Execution_Policies en 
+https:/go.microsoft.com/fwlink/?LinkID=135170.
+En línea: 1 Carácter: 1
++ npx next build
++ ~~~
+    + CategoryInfo          : SecurityError: (:) [], PSSecurityException        
+    + FullyQualifiedErrorId : UnauthorizedAccess
+PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor> $env:NODE_ENV="production"; & "C:\Program Files\nodejs\npm.cmd" run build
+> jasicorporations-gestion-prestamos@1.0.0 build
+> next build
+
+a\Roaming\npm"; vercel --prod
+¿Desea terminar el trabajo por lotes (S/N)? q^C
+PS C:\Users\Owner\.cursor> cmd /c "cd /d C:\Users\Owner\.cursor && npm.cmd run build 2>&1"
+
+> jasicorporations-gestion-prestamos@1.0.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+> [PWA] Compile server
+> [PWA] Compile server
+> [PWA] Compile client (static)
+> [PWA] Auto register service worker with: C:\Users\Owner\.cursor\node_modules\next-pwa\register.js
+> [PWA] Service worker: C:\Users\Owner\.cursor\public\sw.js
+> [PWA]   url: /sw.js
+> [PWA]   scope: /
+¿Desea terminar el trabajo por lotes (S/N)? $env:PATH += ";C:\Users\Owner\AppData\Roaming\npm"; vercel --prod --yes
+¿Desea terminar el trabajo por lotes (S/N)? q^C
+PS C:\Users\Owner\.cursor> cmd /c "set PATH=%PATH%;C:\Users\Owner\AppData\Roaming\npm && vercel --prod --yes"
+Vercel CLI 50.1.3
+| Deploying johns-projects-9d4c1d75/sisi
+PS C:\Users\Owner\.cursor> cmd /c "set PATH=%PATH%;C:\Users\Owner\AppData\Roaming\npm && vercel --prod"
+Vercel CLI 50.1.3
+🔍  Inspect: https://vercel.com/johns-projects-9d4c1d75/sisi/HLiLAFqoeXTdLaz5vt2KEyvno2hi [8s]
+⏳  Production: https://sisi-a0fi4m2kj-johns-projects-9d4c1d75.vercel.app [8s]   
+/ Building: > [PWA]   scope: /
+PS C:\Users\Owner\.cursor> cmd /c "set PATH=%PATH%;C:\Users\Owner\AppData\Roaming\npm && vercel unlink"
+Vercel CLI 50.1.3
+Error: Could not find “~\.cursor\unlink”
+PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor> if (Test-Path .vercel) { Remove-Item -Recurse -Force 
+PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor> cmd /c "set PATH=%PATH%;C:\Users\Owner\AppData\Roaming\npm && vercel link cursor-nu-black"
+Vercel CLI 50.1.3
+WARN! The `vc link <directory>` syntax is deprecated, please use `vc link --cwd 
+cursor-nu-black` instead
+^C
+PS C:\Users\Owner\.cursor> cmd /c "set PATH=%PATH%;C:\Users\Owner\AppData\Roaming\npm && echo cursor-nu-black | vercel link"
+Vercel CLI 50.1.3
+Error: Command `vercel link` requires confirmation. Use option "--yes" to confirm.
+PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor> cmd /c "set PATH=%PATH%;C:\Users\Owner\AppData\Roaming\npm && vercel link --project=cursor-nu-black --yes"
+Vercel CLI 50.1.3
+Local settings detected in vercel.json:
+- Build Command: npm run build
+- Development Command: npm run dev
+- Framework: nextjs
+- Install Command: npm install
+Merging default Project Settings for Next.js. Previously listed overrides are prioritized.
+Auto-detected Project Settings (Next.js):
+- Output Directory: Next.js default
+✅  Linked to johns-projects-9d4c1d75/cursor-nu-black (created .vercel)
+PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor> cmd /c "set PATH=%PATH%;C:\Users\Owner\AppData\Roaming\npm && vercel --prod"
+Vercel CLI 50.1.3
+🔍  Inspect: https://vercel.com/johns-projects-9d4c1d75/cursor-nu-black/8KUTMEcAW2GzJxbLoDdSbo8S15uN [4s]
+⏳  Production: https://cursor-nu-black-am0pz5oxa-johns-projects-9d4c1d75.vercel.
+✅  Production: https://cursor-nu-black-am0pz5oxa-johns-projects-9d4c1d75.vercel.
+app [2m]
+🔗  Aliased: https://cursor-nu-black-five.vercel.app [2m]
+
+Common next commands:
+- `vercel inspect cursor-nu-black-am0pz5oxa-johns-projects-9d4c1d75.vercel.app --logs`
+- `vercel redeploy cursor-nu-black-am0pz5oxa-johns-projects-9d4c1d75.vercel.app`PS C:\Users\Owner\.cursor> q^C
+PS C:\Users\Owner\.cursor>

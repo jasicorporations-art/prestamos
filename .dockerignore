@@ -1,0 +1,27 @@
+# Dependencias y build (se generan en el contenedor)
+node_modules
+.next
+out
+.npm
+
+# Git y IDE
+.git
+.gitignore
+.vercel
+.cursor
+
+# Env local (Railway usa Variables; no subir secretos)
+.env
+.env.*
+!.env.example
+
+# Logs y cache
+*.log
+npm-debug.log*
+.DS_Store
+
+# Documentación y scripts de desarrollo (opcional)
+*.md
+deploy.bat
+deploy-railway.bat
+railway-deploy-log.txt

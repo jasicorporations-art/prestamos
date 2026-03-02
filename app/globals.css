@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset responsive */
+@layer base {
+  html,
+  body {
+    position: relative;
+    overflow-x: hidden;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+
+  /* Imágenes y contenedores: evitar que padding empuje el contenido */
+  img,
+  video,
+  iframe {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Contenedor principal: evitar desbordamiento, permitir scroll vertical */
+  main {
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Botones de acción: centrados en móvil, alineados a la derecha en desktop */
+@layer components {
+  .btn-actions {
+    @apply flex flex-wrap justify-center gap-2 pt-4 md:justify-end md:gap-3;
+  }
+  .btn-actions-tight {
+    @apply flex flex-wrap justify-center gap-2 pt-2 md:justify-end md:gap-3;
+  }
+  /* Contenido de página: scrollable en móvil */
+  .page-content {
+    @apply w-full overflow-y-auto overflow-x-hidden min-h-0 pb-8;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@layer utilities {
+  /* Tablas responsivas: scroll horizontal en móvil sin desbordar la página */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-responsive table {
+    min-width: 100%;
+  }
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    .print-only {
+      display: block !important;
+    }
+    
+    body {
+      background: white;
+      margin: 0;
+      padding: 0;
+      font-size: 10px !important;
+    }
+    
+    .print-page {
+      page-break-after: always;
+    }
+    
+    /* Optimizar para impresión */
+    @page {
+      margin: 0.3cm !important;
+      size: letter;
+    }
+    
+    /* Ocultar navegación y elementos no necesarios */
+    nav,
+    header,
+    footer,
+    .no-print {
+      display: none !important;
+    }
+    
+    /* Asegurar que el contenido sea visible */
+    main {
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    
+    /* Contenedor principal centrado y sin padding */
+    .max-w-7xl {
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 auto !important;
+    }
+    
+    /* Estilos para tablas al imprimir */
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      font-size: 9px !important;
+      table-layout: fixed !important;
+    }
+    
+    th, td {
+      padding: 4px 6px !important;
+      border: 1px solid #ddd !important;
+      font-size: 9px !important;
+      line-height: 1.2 !important;
+    }
+    
+    th {
+      background-color: #f3f4f6 !important;
+      font-weight: bold !important;
+      font-size: 9px !important;
+    }
+    
+    /* Permitir que el texto se ajuste en las celdas */
+    td {
+      word-wrap: break-word !important;
+      overflow-wrap: break-word !important;
+    }
+    
+    /* Evitar saltos de página dentro de filas */
+    tr {
+      page-break-inside: avoid;
+    }
+    
+    /* Asegurar que las tablas se vean completas */
+    .overflow-x-auto {
+      overflow: visible !important;
+    }
+    
+    /* Reducir tamaño de todos los textos en impresión */
+    .text-sm {
+      font-size: 9px !important;
+    }
+    
+    .text-xs {
+      font-size: 8px !important;
+    }
+    
+    .text-xxs {
+      font-size: 7px !important;
+    }
+    
+    /* Eliminar whitespace-nowrap en impresión */
+    .whitespace-nowrap {
+      white-space: normal !important;
+    }
+    
+    /* Asegurar que los contenedores usen todo el ancho */
+    .bg-white.rounded-lg {
+      padding: 0 !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+    }
+    
+    /* Ocultar elementos específicos al imprimir */
+    .print\:hidden {
+      display: none !important;
+    }
+  }
+}
+
+
+
+
+

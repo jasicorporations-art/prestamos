@@ -1,0 +1,2 @@
+# Prisma Migrate: bloquea el historial a este proveedor
+provider = "postgresql"
