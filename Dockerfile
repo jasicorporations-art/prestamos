@@ -31,6 +31,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Migraciones y arranque
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
-
+# Arranque (sin migrate deploy: Supabase :5432 suele no ser accesible desde Railway; ejecuta migraciones a mano o usa DATABASE_URL con pooler :6543 si las necesitas al inicio)
+CMD ["npm", "start"]
