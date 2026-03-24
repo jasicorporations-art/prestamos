@@ -7,6 +7,7 @@ import Script from 'next/script'
 import { AuthGuard } from '@/components/AuthGuard'
 import { SupabaseAuthProvider } from '@/lib/contexts/SupabaseAuthProvider'
 import { CompaniaProvider } from '@/lib/contexts/CompaniaContext'
+import { CurrencyProvider } from '@/lib/contexts/CurrencyContext'
 import { ConditionalLayout } from '@/components/ConditionalLayout'
 
 const FloatingSupport = dynamic(() => import('@/components/FloatingSupport').then((m) => m.default), { ssr: false })
@@ -105,13 +106,15 @@ export default function RootLayout({
       <body className={inter.className}>
         <ServiceWorkerRegistration />
         <SupabaseAuthProvider>
-          <CompaniaProvider>
-            <AuthGuard>
-              <ConditionalLayout>
-                {children}
-              </ConditionalLayout>
-            </AuthGuard>
-          </CompaniaProvider>
+          <CurrencyProvider>
+            <CompaniaProvider>
+              <AuthGuard>
+                <ConditionalLayout>
+                  {children}
+                </ConditionalLayout>
+              </AuthGuard>
+            </CompaniaProvider>
+          </CurrencyProvider>
         </SupabaseAuthProvider>
         <DebugOverlay />
         <FloatingSupport />

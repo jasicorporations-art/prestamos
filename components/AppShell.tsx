@@ -62,9 +62,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           try {
             const rol = await perfilesService.getRolActual()
+            const rolNorm = String(rol || '').toLowerCase().replace(/\s+/g, '_')
             // Si es TRIAL, dar privilegios de Admin para que vea todo el panel
-            const esAdmin = rol === 'Admin' || currentPlan === 'TRIAL'
-            const esSuperAdmin = rol === 'super_admin'
+            const esAdmin = rolNorm === 'admin' || currentPlan === 'TRIAL'
+            const esSuperAdmin = rolNorm === 'super_admin' || rolNorm === 'superadmin'
             setIsAdmin(esAdmin || esSuperAdmin)
             setIsSuperAdmin(esSuperAdmin)
           } catch {
@@ -147,7 +148,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     const q = searchQuery.trim()
-    if (q) router.push(`/clientes?search=${encodeURIComponent(q)}`)
+    if (q) router.push(`/buscar?q=${encodeURIComponent(q)}`)
     setSearchQuery('')
   }
 

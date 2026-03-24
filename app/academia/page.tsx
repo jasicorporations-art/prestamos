@@ -290,7 +290,7 @@ export default function AcademiaPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar - Categorías */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-md p-4 sticky top-24">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sticky top-24">
               <h2 className="font-semibold text-gray-900 mb-4">Categorías</h2>
               <div className="space-y-2">
                 {categorias.map((categoria) => {
@@ -317,7 +317,7 @@ export default function AcademiaPage() {
           {/* Contenido */}
           <div className="lg:col-span-3">
             {categoriaActiva && articulos[categoriaActiva as keyof typeof articulos] && (
-              <div className="bg-white rounded-lg shadow-md p-8">
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8">
                 <div className={`inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r ${articulos[categoriaActiva as keyof typeof articulos].color} rounded-lg mb-6`}>
                   {(() => {
                     const Icono = articulos[categoriaActiva as keyof typeof articulos].icono

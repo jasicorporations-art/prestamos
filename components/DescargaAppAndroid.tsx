@@ -32,26 +32,59 @@ const PASOS_INSTALACION = [
   },
 ]
 
-export function DescargaAppAndroid() {
+type DescargaAppAndroidProps = { variant?: 'light' | 'dark' }
+
+export function DescargaAppAndroid({ variant = 'light' }: DescargaAppAndroidProps) {
   const [acordeonAbierto, setAcordeonAbierto] = useState(false)
+  const isDark = variant === 'dark'
 
   return (
-    <section className="py-12 sm:py-16 px-5 sm:px-6 lg:px-8 bg-gradient-to-b from-primary-50 to-white w-full overflow-x-hidden">
+    <section
+      className={`py-12 sm:py-16 px-5 sm:px-6 lg:px-8 w-full overflow-x-hidden border-t ${
+        isDark ? 'bg-black border-zinc-900' : 'bg-gradient-to-b from-primary-50 to-white border-transparent'
+      }`}
+    >
       <div className="w-full max-w-7xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-visible">
+        <div
+          className={`rounded-2xl shadow-xl overflow-visible ${
+            isDark
+              ? 'bg-zinc-900 border border-zinc-800'
+              : 'bg-white border border-gray-100'
+          }`}
+        >
           {/* Badge de seguridad */}
-          <div className="bg-emerald-50 border-b border-emerald-100 px-5 sm:px-6 py-4 flex items-center justify-center gap-2 flex-wrap">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-            <span className="text-sm font-medium text-emerald-800 text-center">
+          <div
+            className={`border-b px-5 sm:px-6 py-4 flex items-center justify-center gap-2 flex-wrap ${
+              isDark
+                ? 'bg-emerald-950/50 border-emerald-900/40'
+                : 'bg-emerald-50 border-emerald-100'
+            }`}
+          >
+            <ShieldCheck
+              className={`w-5 h-5 flex-shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}
+            />
+            <span
+              className={`text-sm font-medium text-center ${
+                isDark ? 'text-emerald-200' : 'text-emerald-800'
+              }`}
+            >
               Archivo verificado libre de malware
             </span>
           </div>
 
           <div className="p-5 sm:p-6 lg:p-8">
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-3 text-center">
+            <h2
+              className={`text-xl sm:text-2xl lg:text-3xl font-bold mb-3 text-center ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}
+            >
               Descarga la App para Android
             </h2>
-            <p className="text-gray-600 text-center mb-6 sm:mb-8 text-sm sm:text-base leading-relaxed">
+            <p
+              className={`text-center mb-6 sm:mb-8 text-sm sm:text-base leading-relaxed ${
+                isDark ? 'text-zinc-400' : 'text-gray-600'
+              }`}
+            >
               Lleva JasiCorporations en tu bolsillo. Instala la app y gestiona tus préstamos desde cualquier lugar.
             </p>
 
@@ -67,35 +100,65 @@ export function DescargaAppAndroid() {
             </a>
 
             {/* Acordeón de instrucciones */}
-            <div className="mt-6 sm:mt-8 border border-gray-200 rounded-xl overflow-hidden">
+            <div
+              className={`mt-6 sm:mt-8 border rounded-xl overflow-hidden ${
+                isDark ? 'border-zinc-700' : 'border-gray-200'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => setAcordeonAbierto(!acordeonAbierto)}
-                className="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                className={`w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 transition-colors text-left ${
+                  isDark
+                    ? 'bg-zinc-800/80 hover:bg-zinc-800'
+                    : 'bg-gray-50 hover:bg-gray-100'
+                }`}
                 aria-expanded={acordeonAbierto}
               >
-                <span className="font-semibold text-gray-900 text-sm sm:text-base min-w-0">
+                <span
+                  className={`font-semibold text-sm sm:text-base min-w-0 ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
                   ¿Cómo instalar el APK?
                 </span>
                 <ChevronDown
-                  className={`w-5 h-5 text-gray-500 flex-shrink-0 transition-transform duration-200 ${
-                    acordeonAbierto ? 'rotate-180' : ''
-                  }`}
+                  className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${
+                    isDark ? 'text-zinc-400' : 'text-gray-500'
+                  } ${acordeonAbierto ? 'rotate-180' : ''}`}
                 />
               </button>
               {acordeonAbierto && (
-                <div className="px-5 sm:px-6 py-5 sm:py-6 bg-white border-t border-gray-200">
+                <div
+                  className={`px-5 sm:px-6 py-5 sm:py-6 border-t ${
+                    isDark ? 'bg-zinc-950 border-zinc-700' : 'bg-white border-gray-200'
+                  }`}
+                >
                   <ol className="space-y-5 sm:space-y-6">
                     {PASOS_INSTALACION.map((paso, i) => (
                       <li key={i} className="flex gap-4 sm:gap-4 min-w-0">
-                        <span className="flex-shrink-0 w-8 h-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold">
+                        <span
+                          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            isDark
+                              ? 'bg-primary-900/60 text-primary-300 border border-primary-700/50'
+                              : 'bg-primary-100 text-primary-700'
+                          }`}
+                        >
                           {i + 1}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-gray-900 text-sm sm:text-base break-words">
+                          <p
+                            className={`font-semibold text-sm sm:text-base break-words ${
+                              isDark ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
                             {paso.titulo}
                           </p>
-                          <p className="text-sm text-gray-600 mt-1.5 leading-relaxed break-words">
+                          <p
+                            className={`text-sm mt-1.5 leading-relaxed break-words ${
+                              isDark ? 'text-zinc-400' : 'text-gray-600'
+                            }`}
+                          >
                             {paso.descripcion}
                           </p>
                         </div>

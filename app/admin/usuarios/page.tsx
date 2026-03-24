@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Edit, UserCheck, UserX, Users as UsersIcon, Plus, Trash2 } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/Button'
 import { LimitReachedModal } from '@/components/LimitReachedModal'
 import { Modal } from '@/components/Modal'
@@ -28,7 +29,7 @@ const LIMITES_POR_PLAN: Record<string, { admin: number; vendedor: number }> = {
 
 interface UsuarioFormData {
   nombre_completo: string
-  rol: 'Admin' | 'Vendedor'
+  rol: 'Admin' | 'Vendedor' | 'Cobrador'
   sucursal_id: string
   ruta_id: string
 }
@@ -59,7 +60,7 @@ export default function UsuariosPage() {
     password: '',
     confirmPassword: '',
     nombre_completo: '',
-    rol: 'Vendedor' as 'Admin' | 'Vendedor',
+    rol: 'Vendedor' as 'Admin' | 'Vendedor' | 'Cobrador',
     sucursal_id: '',
     ruta_id: '',
   })
@@ -97,7 +98,7 @@ export default function UsuariosPage() {
     } catch (error) {
       console.error('Error cargando datos:', error)
       const msg = error instanceof Error ? error.message : String(error)
-      alert('Error al cargar los datos: ' + msg)
+      toast.error('Error al cargar los datos: ' + msg)
       setUsuarios([])
       setSucursales([])
     } finally {
@@ -133,8 +134,8 @@ export default function UsuariosPage() {
     }
   }, [planType])
 
-  const countAdmin = usuarios.filter((u) => u.rol === 'Admin').length
-  const countVendedor = usuarios.filter((u) => u.rol === 'Vendedor').length
+  const countAdmin = usuarios.filter((u) => (u.rol ?? '').toLowerCase() === 'admin').length
+  const countVendedor = usuarios.filter((u) => (u.rol ?? '').toLowerCase() === 'vendedor').length
   const limites = planType ? LIMITES_POR_PLAN[planType] : null
   const maxAdmin = limites?.admin ?? 999
   const maxVendedor = limites?.vendedor ?? 999
@@ -191,6 +192,10 @@ export default function UsuariosPage() {
     if (sucursalId) {
       const rutasData = await rutasService.getRutasBySucursal(sucursalId)
       setRutas(rutasData)
+      setCreateFormData((prev) => ({
+        ...prev,
+        ruta_id: rutasData.length > 0 ? rutasData[0].id : '',
+      }))
     } else {
       setRutas([])
     }
@@ -221,34 +226,34 @@ export default function UsuariosPage() {
 
   async function handleCreateUsuario() {
     if (!createFormData.email.trim()) {
-      alert('El email es requerido')
+      toast.error('El email es requerido')
       return
     }
 
     if (!createFormData.password || createFormData.password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres')
+      toast.error('La contraseña debe tener al menos 6 caracteres')
       return
     }
 
     if (createFormData.password !== createFormData.confirmPassword) {
-      alert('Las contraseñas no coinciden')
+      toast.error('Las contraseñas no coinciden')
       return
     }
 
     if (isTrial) {
       if (trialUsuarioCreado) {
-        alert('En plan de prueba solo puedes crear un usuario (vendedor). Ya utilizaste tu cupo.')
+        toast.warning('En plan de prueba solo puedes crear un usuario (vendedor). Ya utilizaste tu cupo.')
         return
       }
       if (createFormData.rol !== 'Vendedor') {
         createFormData.rol = 'Vendedor'
       }
     } else if (planType === 'BRONCE' && createFormData.rol === 'Admin') {
-      alert('Plan Bronce: solo puedes crear vendedores. No está permitido crear administradores.')
+      toast.warning('Plan Bronce: solo puedes crear vendedores. No está permitido crear administradores.')
       return
     } else if (isPlanConLimite) {
       if (createFormData.rol === 'Admin' && countAdmin >= maxAdmin) {
-        alert(`Plan ${planType}: máximo ${maxAdmin} administradores. Ya tienes ${countAdmin}.`)
+        toast.warning(`Plan ${planType}: máximo ${maxAdmin} administradores. Ya tienes ${countAdmin}.`)
         return
       }
       if (createFormData.rol === 'Vendedor' && countVendedor >= maxVendedor) {
@@ -256,13 +261,17 @@ export default function UsuariosPage() {
           setShowLimitModal(true)
           return
         }
-        alert(`Plan ${planType}: máximo ${maxVendedor} vendedores. Ya tienes ${countVendedor}.`)
+        toast.warning(`Plan ${planType}: máximo ${maxVendedor} vendedores. Ya tienes ${countVendedor}.`)
         return
       }
     }
 
     setCreatingUsuario(true)
     try {
+      const sucursalSeleccionada = createFormData.sucursal_id
+        ? sucursales.find((s) => s.id === createFormData.sucursal_id)
+        : null
+
       const { user, perfil } = await usuariosService.crearUsuario({
         email: createFormData.email.trim(),
         password: createFormData.password,
@@ -270,6 +279,7 @@ export default function UsuariosPage() {
         rol: createFormData.rol,
         sucursal_id: createFormData.sucursal_id || undefined,
         ruta_id: createFormData.ruta_id || undefined,
+        empresa_id: sucursalSeleccionada?.empresa_id || undefined,
       })
 
       await actividadService.registrarActividad(
@@ -285,10 +295,10 @@ export default function UsuariosPage() {
       }
       handleCloseCreateModal()
       loadData()
-      alert('Usuario creado exitosamente')
+      toast.success('Usuario creado exitosamente')
     } catch (error: any) {
       console.error('Error creando usuario:', error)
-      alert(`Error: ${error.message || 'Error al crear el usuario'}`)
+      toast.error(`Error: ${error.message || 'Error al crear el usuario'}`)
     } finally {
       setCreatingUsuario(false)
     }
@@ -297,19 +307,19 @@ export default function UsuariosPage() {
   async function handleSubmit() {
     try {
       if (!editingUsuario) {
-        alert('Debe seleccionar un usuario para editar')
+        toast.error('Debe seleccionar un usuario para editar')
         return
       }
 
-      if (planType === 'BRONCE' && formData.rol === 'Admin' && editingUsuario.rol !== 'Admin') {
-        alert('Plan Bronce: no está permitido promover usuarios a administrador.')
+      if (planType === 'BRONCE' && formData.rol === 'Admin' && (editingUsuario.rol ?? '').toLowerCase() !== 'admin') {
+        toast.warning('Plan Bronce: no está permitido promover usuarios a administrador.')
         return
       }
       if (isPlanConLimite) {
-        const countAdminSinEste = editingUsuario.rol === 'Admin' ? countAdmin - 1 : countAdmin
-        const countVendedorSinEste = editingUsuario.rol === 'Vendedor' ? countVendedor - 1 : countVendedor
+        const countAdminSinEste = (editingUsuario.rol ?? '').toLowerCase() === 'admin' ? countAdmin - 1 : countAdmin
+        const countVendedorSinEste = (editingUsuario.rol ?? '').toLowerCase() === 'vendedor' ? countVendedor - 1 : countVendedor
         if (formData.rol === 'Admin' && countAdminSinEste >= maxAdmin) {
-          alert(`Plan ${planType}: máximo ${maxAdmin} administradores. No puedes cambiar este usuario a Admin.`)
+          toast.warning(`Plan ${planType}: máximo ${maxAdmin} administradores. No puedes cambiar este usuario a Admin.`)
           return
         }
         if (formData.rol === 'Vendedor' && countVendedorSinEste >= maxVendedor) {
@@ -317,7 +327,7 @@ export default function UsuariosPage() {
             setShowLimitModal(true)
             return
           }
-          alert(`Plan ${planType}: máximo ${maxVendedor} vendedores. No puedes cambiar este usuario a Vendedor.`)
+          toast.warning(`Plan ${planType}: máximo ${maxVendedor} vendedores. No puedes cambiar este usuario a Vendedor.`)
           return
         }
       }
@@ -344,10 +354,10 @@ export default function UsuariosPage() {
 
       handleCloseModal()
       loadData()
-      alert('Usuario actualizado correctamente')
+      toast.success('Usuario actualizado correctamente')
     } catch (error: any) {
       console.error('Error actualizando usuario:', error)
-      alert(`Error: ${error.message || 'Error al actualizar el usuario'}`)
+      toast.error(`Error: ${error.message || 'Error al actualizar el usuario'}`)
     }
   }
 
@@ -372,10 +382,10 @@ export default function UsuariosPage() {
         usuario.user_id
       )
       loadData()
-      alert(`Usuario ${nuevaActivo ? 'activado' : 'desactivado'} correctamente`)
+      toast.success(`Usuario ${nuevaActivo ? 'activado' : 'desactivado'} correctamente`)
     } catch (error: any) {
       console.error('Error cambiando estado del usuario:', error)
-      alert(`Error: ${error.message || 'Error al cambiar el estado del usuario'}`)
+      toast.error(`Error: ${error.message || 'Error al cambiar el estado del usuario'}`)
     }
   }
 
@@ -397,7 +407,7 @@ export default function UsuariosPage() {
     }
 
     if (!adminPassword.trim()) {
-      alert('Por favor, ingresa tu contraseña de administrador para confirmar la eliminación')
+      toast.warning('Por favor, ingresa tu contraseña de administrador para confirmar la eliminación')
       return
     }
 
@@ -439,10 +449,10 @@ export default function UsuariosPage() {
 
       handleCloseDeleteModal()
       loadData()
-      alert('Usuario eliminado correctamente')
+      toast.success('Usuario eliminado correctamente')
     } catch (error: any) {
       console.error('Error eliminando usuario:', error)
-      alert(`Error: ${error.message || 'Error al eliminar el usuario'}`)
+      toast.error(`Error: ${error.message || 'Error al eliminar el usuario'}`)
     } finally {
       setDeleting(false)
       setAdminPassword('')
@@ -457,14 +467,41 @@ export default function UsuariosPage() {
 
   function getNombreRuta(usuario: UsuarioConPerfil): string {
     if (usuario.ruta?.nombre) return usuario.ruta.nombre
-    return usuario.ruta_id ? 'Ruta asignada' : '—'
+    if (usuario.ruta_id) return 'Ruta asignada (no visible por filtro o vínculo roto)'
+    return '—'
   }
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-12">
-          <p className="text-gray-500">Verificando permisos...</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
+        <div className="mb-6 flex justify-between items-center">
+          <div>
+            <div className="h-8 bg-gray-200 rounded w-64 mb-2" />
+            <div className="h-4 bg-gray-100 rounded w-80" />
+          </div>
+          <div className="flex gap-4">
+            <div className="h-9 w-24 bg-gray-200 rounded-md" />
+            <div className="h-9 w-36 bg-gray-200 rounded-md" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-100">
+              <div className="h-9 w-9 bg-gray-200 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-40" />
+                <div className="h-3 bg-gray-100 rounded w-56" />
+              </div>
+              <div className="h-5 w-16 bg-gray-100 rounded-full" />
+              <div className="h-4 bg-gray-100 rounded w-24" />
+              <div className="h-5 w-14 bg-gray-100 rounded-full" />
+              <div className="flex gap-2">
+                <div className="h-7 w-7 bg-gray-100 rounded" />
+                <div className="h-7 w-7 bg-gray-100 rounded" />
+                <div className="h-7 w-7 bg-gray-100 rounded" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -473,18 +510,17 @@ export default function UsuariosPage() {
   if (!isAdmin) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-6 rounded-md mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-lg font-medium text-yellow-800">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-6 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <svg className="h-5 w-5 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div>
+              <h3 className="text-lg font-medium text-amber-900">
                 Configuración Requerida
               </h3>
-              <div className="mt-2 text-sm text-yellow-700">
+              <div className="mt-2 text-sm text-amber-700">
                 <p className="mb-2">
                   Para gestionar usuarios, necesitas tener un perfil con rol &apos;Admin&apos; en la tabla &apos;perfiles&apos; de Supabase.
                 </p>
@@ -492,10 +528,10 @@ export default function UsuariosPage() {
                 <ol className="list-decimal list-inside space-y-1 ml-4">
                   <li>Ve a Supabase Dashboard → SQL Editor</li>
                   <li>Obtén tu user_id desde Authentication → Users (busca tu email)</li>
-                  <li>Abre el archivo <code className="bg-yellow-100 px-1 rounded">supabase/crear-perfil-admin.sql</code></li>
+                  <li>Abre el archivo <code className="bg-amber-100 px-1 rounded">supabase/crear-perfil-admin.sql</code></li>
                   <li>Reemplaza los valores marcados con ⚠️ y ejecuta el script</li>
                 </ol>
-                <div className="mt-3 p-3 bg-yellow-100 rounded">
+                <div className="mt-3 p-3 bg-amber-100 rounded-lg">
                   <p className="text-xs font-semibold mb-2">Script SQL rápido:</p>
                   <pre className="text-xs overflow-x-auto">
 {`-- Reemplaza estos valores:
@@ -506,12 +542,11 @@ export default function UsuariosPage() {
 -- Ve a: supabase/crear-perfil-admin.sql para el script completo`}
                   </pre>
                 </div>
-                <p className="mt-2 text-xs text-yellow-600">
-                  <strong>Nota:</strong> Si ya ejecutaste el SQL pero aún ves este mensaje, verifica en F12 (Consola) si hay errores 406. 
+                <p className="mt-2 text-xs text-amber-600">
+                  <strong>Nota:</strong> Si ya ejecutaste el SQL pero aún ves este mensaje, verifica en F12 (Consola) si hay errores 406.
                   Puede ser un problema de permisos RLS en Supabase.
                 </p>
               </div>
-            </div>
           </div>
         </div>
         <Button variant="secondary" onClick={() => router.back()}>
@@ -571,120 +606,142 @@ export default function UsuariosPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Cargando usuarios...</p>
-        </div>
-      ) : usuarios.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <UsersIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No hay usuarios registrados</p>
+      {usuarios.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+          <UsersIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 mb-2 font-medium">No hay usuarios registrados</p>
           <p className="text-sm text-gray-400">
-            Los usuarios deben tener un perfil creado en la tabla &apos;perfiles&apos; de Supabase.
-          </p>
-          <p className="text-sm text-gray-400 mt-2">
-            Consulta las instrucciones en INSTRUCCIONES_MULTIUSUARIO.md para crear perfiles.
+            Crea tu primer usuario con el botón &ldquo;Crear Usuario&rdquo; arriba.
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y divide-gray-100">
+            {usuarios.map((usuario) => (
+              <div key={usuario.id} className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {usuario.nombre_completo || 'Sin nombre'}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">{usuario.email}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {getNombreSucursal(usuario.sucursal_id)} · {getNombreRuta(usuario)}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                      (usuario.rol ?? '').toLowerCase() === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {(usuario.rol || '').charAt(0).toUpperCase() + (usuario.rol || '').slice(1).toLowerCase()}
+                    </span>
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                      usuario.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {usuario.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => handleEdit(usuario)}
+                    className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                  >
+                    <Edit className="w-3.5 h-3.5" /> Editar
+                  </button>
+                  <button
+                    onClick={() => handleToggleActivo(usuario)}
+                    className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      usuario.activo ? 'text-orange-600 bg-orange-50 hover:bg-orange-100' : 'text-green-600 bg-green-50 hover:bg-green-100'
+                    }`}
+                  >
+                    {usuario.activo ? <><UserX className="w-3.5 h-3.5" /> Desactivar</> : <><UserCheck className="w-3.5 h-3.5" /> Activar</>}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(usuario)}
+                    className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Usuario
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rol
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sucursal
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ruta
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sucursal</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ruta</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {usuarios.map((usuario) => (
-                  <tr key={usuario.id} className="hover:bg-gray-50">
+                  <tr key={usuario.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {usuario.nombre_completo || 'Sin nombre'}
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-indigo-700">
+                            {(usuario.nombre_completo || usuario.email || '?').charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {usuario.nombre_completo || 'Sin nombre'}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-600">{usuario.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          usuario.rol === 'Admin'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}
-                      >
-                        {usuario.rol}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        (usuario.rol ?? '').toLowerCase() === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {(usuario.rol || '').charAt(0).toUpperCase() + (usuario.rol || '').slice(1).toLowerCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-600">
-                        {getNombreSucursal(usuario.sucursal_id)}
-                      </div>
+                      <div className="text-sm text-gray-600">{getNombreSucursal(usuario.sucursal_id)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {getNombreRuta(usuario)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          usuario.activo
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        usuario.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
                         {usuario.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => handleEdit(usuario)}
-                        className="text-primary-600 hover:text-primary-900 mr-4"
+                        className="text-primary-600 hover:text-primary-900 mr-3 p-1 hover:bg-primary-50 rounded transition-colors"
                         title="Editar Usuario"
                       >
-                        <Edit className="w-5 h-5 inline" />
+                        <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleToggleActivo(usuario)}
-                        className={
-                          usuario.activo
-                            ? 'text-red-600 hover:text-red-900 mr-4'
-                            : 'text-green-600 hover:text-green-900 mr-4'
-                        }
+                        className={`mr-3 p-1 rounded transition-colors ${usuario.activo ? 'text-orange-600 hover:text-orange-900 hover:bg-orange-50' : 'text-green-600 hover:text-green-900 hover:bg-green-50'}`}
                         title={usuario.activo ? 'Desactivar Usuario' : 'Activar Usuario'}
                       >
-                        {usuario.activo ? (
-                          <UserX className="w-5 h-5 inline" />
-                        ) : (
-                          <UserCheck className="w-5 h-5 inline" />
-                        )}
+                        {usuario.activo ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                       </button>
                       <button
                         onClick={() => handleDelete(usuario)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-colors"
                         title="Eliminar Usuario"
                       >
-                        <Trash2 className="w-5 h-5 inline" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -725,20 +782,21 @@ export default function UsuariosPage() {
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  rol: e.target.value as 'Admin' | 'Vendedor',
+                  rol: e.target.value as 'Admin' | 'Vendedor' | 'Cobrador',
                 })
               }
               options={
-                planType === 'BRONCE' && editingUsuario?.rol === 'Vendedor'
+                planType === 'BRONCE' && (editingUsuario?.rol ?? '').toLowerCase() === 'vendedor'
                   ? [{ value: 'Vendedor', label: 'Vendedor - Acceso estándar' }]
                   : [
                       { value: 'Admin', label: 'Admin - Acceso completo' },
                       { value: 'Vendedor', label: 'Vendedor - Acceso estándar' },
+                      { value: 'Cobrador', label: 'Cobrador - Solo ruta, clientes (lectura) y registrar cobros' },
                     ]
               }
             />
             <p className="mt-1 text-xs text-gray-500">
-              {planType === 'BRONCE' && editingUsuario?.rol === 'Vendedor'
+              {planType === 'BRONCE' && (editingUsuario?.rol ?? '').toLowerCase() === 'vendedor'
                 ? 'Plan Bronce: no puedes promover vendedores a administrador.'
                 : planType === 'BRONCE'
                 ? 'Puedes degradar un Admin a Vendedor, pero no promover a Admin.'
@@ -823,9 +881,12 @@ export default function UsuariosPage() {
         title="Crear Nuevo Usuario"
       >
         <div className="space-y-4">
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
-            <p className="text-sm text-blue-700">
+          <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl">
+            <p className="text-sm text-indigo-700">
               El nuevo usuario podrá iniciar sesión con el email y contraseña que proporciones.
+            </p>
+            <p className="text-sm text-indigo-700 mt-1">
+              Entrará a la misma compañía y tipo de negocio que la actual (Dealer, Préstamos, Electro, etc.).
             </p>
           </div>
 
@@ -900,17 +961,18 @@ export default function UsuariosPage() {
               onChange={(e) =>
                 setCreateFormData({
                   ...createFormData,
-                  rol: e.target.value as 'Admin' | 'Vendedor',
+                  rol: e.target.value as 'Admin' | 'Vendedor' | 'Cobrador',
                 })
               }
               options={
                 isTrial
                   ? [{ value: 'Vendedor', label: 'Vendedor - En plan de prueba solo puedes crear vendedores' }]
                   : planType === 'BRONCE'
-                  ? [{ value: 'Vendedor', label: isPlanConLimite ? `Vendedor (${countVendedor}/${maxVendedor})` : 'Vendedor - Acceso estándar' }]
+                  ? [{ value: 'Vendedor', label: isPlanConLimite ? `Vendedor (${countVendedor}/${maxVendedor})` : 'Vendedor - Acceso estándar' }, { value: 'Cobrador', label: 'Cobrador - Solo ruta, clientes (lectura) y registrar cobros' }]
                   : [
                       { value: 'Admin', label: isPlanConLimite ? `Admin (${countAdmin}/${maxAdmin})` : 'Admin - Acceso completo' },
                       { value: 'Vendedor', label: isPlanConLimite ? `Vendedor (${countVendedor}/${maxVendedor})` : 'Vendedor - Acceso estándar' },
+                      { value: 'Cobrador', label: 'Cobrador - Solo ruta, clientes (lectura) y registrar cobros' },
                     ]
               }
             />
@@ -999,9 +1061,9 @@ export default function UsuariosPage() {
         title={`Eliminar Usuario: ${usuarioAEliminar?.email || ''}`}
       >
         <div className="space-y-4">
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
+          <div className="bg-red-50 border border-red-200 p-4 rounded-xl">
             <p className="text-sm text-red-700 font-semibold mb-2">
-              ⚠️ Esta acción no se puede deshacer
+              Esta acción no se puede deshacer
             </p>
             <p className="text-sm text-red-700">
               El usuario será eliminado permanentemente del sistema. Todos sus datos asociados se perderán.

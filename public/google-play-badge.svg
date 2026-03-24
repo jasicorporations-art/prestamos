@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="210" height="62">
+  <!-- Fondo negro redondeado -->
+  <rect width="210" height="62" rx="8" fill="#000000"/>
+  <rect x="0.5" y="0.5" width="209" height="61" rx="7.5" fill="none" stroke="#888" stroke-width="1"/>
+
+  <!-- Ícono Google Play (triángulo 4 colores) -->
+  <!-- Azul: lado izquierdo -->
+  <path d="M14,16 L14,46 L30,31 Z" fill="#4285F4"/>
+  <!-- Verde: parte inferior -->
+  <path d="M14,46 L30,31 L44,46 Z" fill="#34A853"/>
+  <!-- Rojo: parte superior -->
+  <path d="M14,16 L30,31 L44,16 Z" fill="#EA4335"/>
+  <!-- Amarillo: punta derecha -->
+  <path d="M30,31 L44,16 L44,46 Z" fill="#FBBC04"/>
+
+  <!-- Texto "Disponible en" -->
+  <text x="54" y="26" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="400" letter-spacing="0.3">Disponible en</text>
+
+  <!-- Texto "Google Play" -->
+  <text x="53" y="47" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="500">Google Play</text>
+</svg>

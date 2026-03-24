@@ -58,7 +58,7 @@ export default function RecuperarContrasenaPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-white rounded-lg shadow p-8 text-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               Correo Enviado
@@ -72,7 +72,7 @@ export default function RecuperarContrasenaPage() {
             <p className="text-primary-600 font-medium mb-6">
               {email}
             </p>
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md text-left mb-6">
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl text-left mb-6">
               <p className="text-sm text-blue-700">
                 <strong>Instrucciones:</strong>
               </p>
@@ -129,9 +129,9 @@ export default function RecuperarContrasenaPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl">
               <p className="text-sm text-blue-700">
                 Te enviaremos un correo electrónico con un enlace para restablecer tu contraseña.
               </p>

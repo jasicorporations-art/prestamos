@@ -2,21 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Package, DollarSign, TrendingUp, Calendar, AlertCircle, Clock, Building2 } from 'lucide-react'
+import { Package, DollarSign, TrendingUp, AlertCircle, Clock, Building2, FileText } from 'lucide-react'
 import { ventasService } from '@/lib/services/ventas'
 import { pagosService } from '@/lib/services/pagos'
-import { obtenerVentasConMora } from '@/lib/services/mora'
-import { obtenerCuotasPendientes, type CuotaPendiente } from '@/lib/services/cuotas'
+import { getTotalCargosMoraParaDashboard } from '@/lib/services/reporteMora'
+import { getTotalCuotasAtrasadasCount } from '@/lib/services/cuotas'
 import { subscriptionService } from '@/lib/services/subscription'
 import { PLANES, getUsagePercentage } from '@/lib/config/planes'
 import { perfilesService } from '@/lib/services/perfiles'
 import { TourGuided } from '@/components/TourGuided'
+import { CurrencySelector } from '@/components/CurrencySelector'
 import { useCompania } from '@/lib/contexts/CompaniaContext'
+import { useFormatCurrency } from '@/lib/contexts/CurrencyContext'
 import type { Venta, Pago } from '@/types'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/Button'
 import { dataTraceStart, dataTraceEnd, logRequest } from '@/lib/utils/authInstrumentation'
+import { toast } from '@/lib/toast'
 
 interface VentaConCuotas extends Venta {
   cuotasPagadas: number
@@ -26,10 +29,12 @@ interface VentaConCuotas extends Venta {
 export default function Dashboard() {
   const router = useRouter()
   const { loading: companiaLoading, compania } = useCompania()
+  const formatCurrency = useFormatCurrency()
   const [totalPorCobrar, setTotalPorCobrar] = useState(0)
   const [totalCargosMora, setTotalCargosMora] = useState(0)
+  const [moraVsAnterior, setMoraVsAnterior] = useState<number | null>(null)
   const [ventasDelMes, setVentasDelMes] = useState<VentaConCuotas[]>([])
-  const [cuotasPendientes, setCuotasPendientes] = useState<CuotaPendiente[]>([])
+  const [totalCuotasPendientes, setTotalCuotasPendientes] = useState(0)
   const [loading, setLoading] = useState(true)
   const [planType, setPlanType] = useState<string | null>(null)
   const [usageStats, setUsageStats] = useState({ clientes: 0, prestamos: 0 })
@@ -42,6 +47,7 @@ export default function Dashboard() {
   const [sucursalNombre, setSucursalNombre] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [esSuperAdmin, setEsSuperAdmin] = useState<boolean | null>(null)
+  const [cobrosChart, setCobrosChart] = useState<{ fecha: string; total: number; count: number }[]>([])
 
   const loadData = useCallback(async () => {
     setLoadError(null)
@@ -50,7 +56,7 @@ export default function Dashboard() {
     const LOAD_TIMEOUT_MS = 25000
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Tiempo de espera agotado. Revisa tu conexión o contacta soporte.')), LOAD_TIMEOUT_MS)
+      setTimeout(() => reject(new Error('No se pudo cargar el panel. Comprueba tu conexión e intenta de nuevo.')), LOAD_TIMEOUT_MS)
     )
 
     const loadPromise = (async () => {
@@ -58,7 +64,7 @@ export default function Dashboard() {
         const t0 = performance.now()
         const todasVentas = await ventasService.getAll()
         logRequest('ventas.getAll', { durationMs: Math.round(performance.now() - t0) })
-        const ventasActivas = todasVentas.filter((v) => (v.saldo_pendiente ?? 0) > 0)
+        const ventasActivas = todasVentas.filter((v) => (Number(v.saldo_pendiente) ?? 0) > 0)
         const ventasParaLista = [...ventasActivas]
           .sort((a, b) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
           .slice(0, 100)
@@ -75,11 +81,25 @@ export default function Dashboard() {
           })
         )
         setVentasDelMes(ventasConCuotas)
-        setTotalPorCobrar(ventasActivas.reduce((sum, v) => sum + (v.saldo_pendiente || 0), 0))
+        setTotalPorCobrar(ventasActivas.reduce((sum, v) => sum + (Number(v.saldo_pendiente) || 0), 0))
 
-        const [ventasConMora, cuotas, plan, stats, isTrial, trialInfoData, nombreSucursal] = await Promise.all([
-          obtenerVentasConMora().catch(() => []),
-          obtenerCuotasPendientes().catch(() => []),
+        // Gráfico de cobros: fetch no bloqueante, no afecta el tiempo de carga principal
+        pagosService.getAll().then((todosPagos) => {
+          const hoy = new Date()
+          const dias: { fecha: string; total: number; count: number }[] = []
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date(hoy)
+            d.setDate(hoy.getDate() - i)
+            const key = d.toISOString().slice(0, 10)
+            const del_dia = todosPagos.filter((p) => (p.fecha_pago || '').slice(0, 10) === key)
+            dias.push({ fecha: key, total: del_dia.reduce((s, p) => s + (Number(p.monto) || 0), 0), count: del_dia.length })
+          }
+          setCobrosChart(dias)
+        }).catch(() => { /* silencioso */ })
+
+        const [moraResult, totalCuotas, plan, stats, isTrial, trialInfoData, nombreSucursal] = await Promise.all([
+          getTotalCargosMoraParaDashboard().catch(() => ({ totalMoraPendiente: 0, totalAnterior: null })),
+          getTotalCuotasAtrasadasCount().catch(() => 0),
           subscriptionService.getCurrentPlan().catch(() => null),
           subscriptionService.getUsageStats().catch(() => ({ clientes: 0, prestamos: 0 })),
           subscriptionService.isTrial().catch(() => false),
@@ -87,8 +107,9 @@ export default function Dashboard() {
           perfilesService.getNombreSucursal().catch(() => null),
         ])
 
-        setTotalCargosMora(ventasConMora.reduce((sum, item) => sum + (item.totalCargos || 0), 0))
-        setCuotasPendientes(cuotas)
+        setTotalCargosMora(moraResult.totalMoraPendiente)
+        setMoraVsAnterior(moraResult.totalAnterior)
+        setTotalCuotasPendientes(totalCuotas)
         setPlanType(plan)
         setUsageStats(stats)
         setTrialInfo({ isTrial, daysRemaining: trialInfoData.daysRemaining, trialEndDate: trialInfoData.trialEndDate })
@@ -124,8 +145,16 @@ export default function Dashboard() {
     checkTourStatus()
     const handleReiniciarTour = () => setTourRun(true)
     window.addEventListener('reiniciar-tour', handleReiniciarTour)
-    return () => window.removeEventListener('reiniciar-tour', handleReiniciarTour)
-  }, [])
+    const handleRefreshMora = () => loadData()
+    window.addEventListener('dashboard:refresh-mora', handleRefreshMora)
+    const handleVisibility = () => { if (document.visibilityState === 'visible') loadData() }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('reiniciar-tour', handleReiniciarTour)
+      window.removeEventListener('dashboard:refresh-mora', handleRefreshMora)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [loadData])
 
   // Verificar si es super_admin (puede cargar sin compania)
   useEffect(() => {
@@ -162,11 +191,48 @@ export default function Dashboard() {
 
   if (companiaLoading || loading || (!compania && esSuperAdmin === null)) {
     return (
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-12">
-          <p className="text-gray-500">
-            {companiaLoading ? 'Cargando tu empresa...' : !compania && esSuperAdmin === null ? 'Verificando acceso...' : 'Preparando tu resumen de cartera...'}
-          </p>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
+        {/* Título skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div className="h-9 w-40 bg-gray-200 rounded-lg" />
+          <div className="h-8 w-32 bg-gray-100 rounded-lg" />
+        </div>
+
+        {/* 4 stat cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2 flex-1">
+                  <div className="h-3.5 w-24 bg-gray-200 rounded" />
+                  <div className="h-7 w-20 bg-gray-200 rounded" />
+                  <div className="h-3 w-16 bg-gray-100 rounded" />
+                </div>
+                <div className="w-10 h-10 bg-gray-100 rounded-full ml-4" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sección acciones rápidas */}
+        <div className="h-5 w-36 bg-gray-200 rounded mb-4" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 h-20" />
+          ))}
+        </div>
+
+        {/* Tabla préstamos activos */}
+        <div className="h-5 w-44 bg-gray-200 rounded mb-4" />
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-100">
+              <div className="h-4 flex-1 bg-gray-100 rounded" />
+              <div className="h-4 w-24 bg-gray-100 rounded" />
+              <div className="h-4 w-20 bg-gray-100 rounded" />
+              <div className="h-4 w-16 bg-gray-100 rounded" />
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -206,25 +272,31 @@ export default function Dashboard() {
       
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        {sucursalNombre && (
-          <div
-            className="inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 text-white shadow-lg ring-1 ring-white/10"
-            aria-label={`Sucursal actual: ${sucursalNombre}`}
-          >
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/15">
-              <Building2 className="w-5 h-5 text-white" strokeWidth={2} />
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-slate-300 font-medium">Sucursal actual</p>
-              <p className="text-lg font-semibold tracking-tight">{sucursalNombre}</p>
-            </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 whitespace-nowrap">Moneda:</span>
+            <CurrencySelector />
           </div>
-        )}
+          {sucursalNombre && (
+            <div
+              className="inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 text-white shadow-lg ring-1 ring-white/10"
+              aria-label={`Sucursal actual: ${sucursalNombre}`}
+            >
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/15">
+                <Building2 className="w-5 h-5 text-white" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-slate-300 font-medium">Sucursal actual</p>
+                <p className="text-lg font-semibold tracking-tight">{sucursalNombre}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Trial Banner */}
       {trialInfo.isTrial && (
-        <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
+        <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-2xl">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-amber-800">
@@ -244,85 +316,156 @@ export default function Dashboard() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Préstamos Activos</p>
-              <p className="text-2xl font-bold text-gray-900">{ventasDelMes.length}</p>
-            </div>
-            <Package className="w-8 h-8 text-primary-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total por Cobrar</p>
-              <p className="text-2xl font-bold text-gray-900">
-                ${totalPorCobrar.toLocaleString('es-DO')}
-              </p>
-            </div>
-            <DollarSign className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Cargos de Mora</p>
-              <p className="text-2xl font-bold text-red-600">
-                ${totalCargosMora.toLocaleString('es-DO')}
-              </p>
-            </div>
-            <AlertCircle className="w-8 h-8 text-red-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Cuotas Pendientes</p>
-              <p className="text-2xl font-bold text-gray-900">{cuotasPendientes.length}</p>
-            </div>
-            <Clock className="w-8 h-8 text-amber-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Link
-          href="/admin/sucursales"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          data-tour="sucursales"
+          href="/dashboard/prestamos-activos"
+          className="group bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-blue-200 transition-all block"
+          data-tour="prestamos-activos"
         >
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Sucursales</h2>
-          <p className="text-sm text-gray-600">Gestiona tus diferentes puntos de venta</p>
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Package className="w-5 h-5 text-blue-600" />
+            </div>
+            <span className="text-xs text-blue-500 font-medium group-hover:underline">Ver →</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mb-0.5">{ventasDelMes.length}</p>
+          <p className="text-sm text-gray-500">Préstamos activos</p>
         </Link>
 
-        <Link
-          href="/ventas/nuevo"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          data-tour="nuevo-prestamo"
-        >
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Nuevo Préstamo</h2>
-          <p className="text-sm text-gray-600">Registra un vehículo y genera el contrato</p>
-        </Link>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center mb-3">
+            <DollarSign className="w-5 h-5 text-green-600" />
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mb-0.5">{formatCurrency(totalPorCobrar)}</p>
+          <p className="text-sm text-gray-500">Total por cobrar</p>
+          {cobrosChart.length > 0 && cobrosChart[cobrosChart.length - 1]?.total > 0 && (
+            <p className="text-xs text-green-600 mt-1 font-medium">
+              +{formatCurrency(cobrosChart[cobrosChart.length - 1].total)} hoy
+            </p>
+          )}
+        </div>
 
         <Link
           href="/admin/mora"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+          className="group bg-white rounded-xl shadow-sm border border-orange-200 p-5 hover:shadow-md transition-all block"
           data-tour="gestion-mora"
         >
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Gestión de Mora</h2>
-          <p className="text-sm text-gray-600">Visualiza tu capital en riesgo</p>
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+            </div>
+            {moraVsAnterior !== null && moraVsAnterior !== totalCargosMora && (
+              <span className={`text-xs font-semibold ${totalCargosMora > moraVsAnterior ? 'text-red-500' : 'text-green-500'}`}>
+                {totalCargosMora > moraVsAnterior ? '↑' : '↓'} vs ayer
+              </span>
+            )}
+          </div>
+          <p className="text-2xl font-bold text-orange-600 mb-0.5">{formatCurrency(totalCargosMora)}</p>
+          <p className="text-sm text-gray-500">Cargos de mora</p>
         </Link>
+
+        <div className={`bg-white rounded-xl shadow-sm border p-5 ${totalCuotasPendientes > 0 ? 'border-red-200' : 'border-gray-100'}`}>
+          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center mb-3">
+            <Clock className="w-5 h-5 text-amber-500" />
+          </div>
+          <p className={`text-2xl font-bold mb-0.5 ${totalCuotasPendientes > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+            {totalCuotasPendientes}
+          </p>
+          <p className="text-sm text-gray-500">Cuotas en atraso</p>
+        </div>
+      </div>
+
+      {/* Gráfico cobros últimos 7 días */}
+      {cobrosChart.length > 0 && (
+        <div className="bg-white rounded-xl shadow p-5 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Cobros — últimos 7 días</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Total hoy:{' '}
+                <span className="font-semibold text-gray-700">
+                  {formatCurrency(cobrosChart[cobrosChart.length - 1]?.total ?? 0)}
+                </span>
+                {' '}· {cobrosChart[cobrosChart.length - 1]?.count ?? 0} pago{cobrosChart[cobrosChart.length - 1]?.count !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <TrendingUp className="w-5 h-5 text-green-500" />
+          </div>
+
+          {(() => {
+            const maxTotal = Math.max(...cobrosChart.map((d) => d.total), 1)
+            const DIAS_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+            return (
+              <div className="flex items-end gap-1.5 h-28">
+                {cobrosChart.map((dia, i) => {
+                  const pct = dia.total / maxTotal
+                  const barH = Math.max(pct * 88, dia.total > 0 ? 6 : 2)
+                  const esHoy = i === cobrosChart.length - 1
+                  const fecha = new Date(dia.fecha + 'T12:00:00')
+                  const label = esHoy ? 'Hoy' : DIAS_ES[fecha.getDay()]
+                  return (
+                    <div key={dia.fecha} className="flex-1 flex flex-col items-center gap-1" title={`${dia.fecha}: ${formatCurrency(dia.total)} (${dia.count} pagos)`}>
+                      <span className="text-[10px] text-gray-400 leading-none">
+                        {dia.total > 0 ? formatCurrency(dia.total).replace(/\.00$/, '') : '—'}
+                      </span>
+                      <div className="w-full flex items-end justify-center" style={{ height: 88 }}>
+                        <div
+                          style={{
+                            height: barH,
+                            width: '100%',
+                            borderRadius: 6,
+                            background: esHoy
+                              ? 'linear-gradient(180deg,#22c55e,#15803d)'
+                              : dia.total > 0
+                                ? 'linear-gradient(180deg,#86efac,#4ade80)'
+                                : '#f1f5f9',
+                            boxShadow: esHoy ? '0 4px 14px rgba(34,197,94,0.45)' : 'none',
+                            transition: 'height 0.4s ease',
+                          }}
+                        />
+                      </div>
+                      <span className={`text-[10px] leading-none font-medium ${esHoy ? 'text-green-600' : 'text-gray-400'}`}>
+                        {label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Acciones rápidas</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+        {[
+          { href: '/ventas', icon: FileText, label: 'Financiamientos', desc: 'Ver cartera activa', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { href: '/pagos', icon: DollarSign, label: 'Registrar cobro', desc: 'Anotar un pago recibido', color: 'text-green-600', bg: 'bg-green-50' },
+          { href: '/clientes', icon: Package, label: 'Clientes', desc: 'Buscar o añadir cliente', color: 'text-violet-600', bg: 'bg-violet-50' },
+          { href: '/admin/mora', icon: AlertCircle, label: 'Gestión de mora', desc: 'Capital en riesgo', color: 'text-orange-600', bg: 'bg-orange-50' },
+          { href: '/admin/sucursales', icon: Building2, label: 'Sucursales', desc: 'Puntos de venta', color: 'text-slate-600', bg: 'bg-slate-100' },
+          { href: '/admin/aprobaciones', icon: CheckCircle, label: 'Aprobaciones', desc: 'Solicitudes pendientes', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        ].map(({ href, icon: Icon, label, desc, color, bg }) => (
+          <Link
+            key={href}
+            href={href}
+            className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 hover:shadow-md hover:border-gray-200 transition-all"
+          >
+            <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
+              <Icon className={`w-4.5 h-4.5 ${color}`} style={{ width: 18, height: 18 }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-800 truncate">{label}</p>
+              <p className="text-xs text-gray-400 truncate">{desc}</p>
+            </div>
+          </Link>
+        ))}
       </div>
 
       {/* Usage Stats */}
       {plan && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Uso de tu plan {plan.nombre}</h2>
           <div className="space-y-4">
             <div>

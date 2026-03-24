@@ -27,8 +27,21 @@ export async function GET(request: NextRequest) {
       page++
     } while (lastBatch.length === perPage)
 
-    const { data: perfiles } = await admin.from('perfiles').select('user_id,empresa_id,rol,activo,email,nombre_completo')
-    const { data: empresas } = await admin.from('empresas').select('id,nombre,user_id')
+    let perfilesRes = await admin
+      .from('perfiles')
+      .select('user_id,empresa_id,compania_id,rol,activo,email,nombre_completo')
+    if (perfilesRes.error && /column|does not exist/i.test(perfilesRes.error.message || '')) {
+      perfilesRes = await admin.from('perfiles').select('user_id,empresa_id,rol,activo,email,nombre_completo')
+    }
+    if (perfilesRes.error) throw perfilesRes.error
+    const perfiles = perfilesRes.data
+    let empresas: { id: string; nombre: string; user_id?: string }[] | null = null
+    let empresasRes = await admin.from('empresas').select('id,nombre,user_id')
+    if (empresasRes.error && /column|does not exist/i.test(empresasRes.error.message || '')) {
+      empresasRes = await admin.from('empresas').select('id,nombre')
+    }
+    if (empresasRes.error) throw empresasRes.error
+    empresas = (empresasRes.data || []) as { id: string; nombre: string; user_id?: string }[]
 
     const empresaMap = new Map<string, string>()
     const empresaByOwner = new Map<string, string>()
@@ -38,13 +51,17 @@ export async function GET(request: NextRequest) {
       empresaMap.set(emp.nombre, emp.nombre)
       if (emp.user_id) empresaByOwner.set(emp.user_id, emp.nombre)
     }
-    const perfilesByUser = new Map<string, { empresa_id?: string; rol?: string; activo?: boolean; email?: string }[]>()
+    const perfilesByUser = new Map<
+      string,
+      { empresa_id?: string; compania_id?: string; rol?: string; activo?: boolean; email?: string }[]
+    >()
     for (const p of perfiles || []) {
       const key = (p as { user_id?: string }).user_id
       if (!key) continue
       if (!perfilesByUser.has(key)) perfilesByUser.set(key, [])
       perfilesByUser.get(key)!.push({
         empresa_id: (p as { empresa_id?: string }).empresa_id,
+        compania_id: (p as { compania_id?: string }).compania_id,
         rol: (p as { rol?: string }).rol,
         activo: (p as { activo?: boolean }).activo,
         email: (p as { email?: string }).email,
@@ -63,7 +80,10 @@ export async function GET(request: NextRequest) {
     const cuentas = users.map((u: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => {
       const perfilesUser = perfilesByUser.get(u.id) || []
       const primerPerfil = perfilesUser[0]
-      const empresaId = primerPerfil?.empresa_id
+      const empresaId =
+        primerPerfil?.empresa_id ||
+        (primerPerfil as { compania_id?: string })?.compania_id ||
+        undefined
       const nombrePorPerfil = empresaId ? empresaMap.get(empresaId) : null
       const nombrePorOwner = empresaByOwner.get(u.id)
       const empresa_nombre = nombrePorPerfil ?? nombrePorOwner ?? (u.user_metadata?.compania as string) ?? '-'

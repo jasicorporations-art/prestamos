@@ -9,6 +9,7 @@ import { Input } from '@/components/Input'
 import { authService } from '@/lib/services/auth'
 import { obtenerRecordatoriosPendientes, type Recordatorio } from '@/lib/services/recordatorios'
 import { Button } from '@/components/Button'
+import { toast } from '@/lib/toast'
 
 type ConfigWhatsApp = {
   metodo_envio: string
@@ -170,7 +171,7 @@ export default function RecordatoriosPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al procesar el pago'
       console.error('Error iniciarPago WhatsApp:', e)
-      alert(`Error: ${msg}\n\nVerifica que STRIPE_SECRET_KEY esté configurada en Vercel.`)
+      toast.error(`Error: ${msg} — Verifica que STRIPE_SECRET_KEY esté configurada en Vercel.`)
     } finally {
       setCheckoutLoading(false)
     }
@@ -195,7 +196,7 @@ export default function RecordatoriosPage() {
       if (data.url) window.location.href = data.url
       else throw new Error(data.error || 'No se recibió URL de pago')
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al procesar el pago')
+      toast.error(e instanceof Error ? e.message : 'Error al procesar el pago')
     } finally {
       setEvolutionCheckoutLoading(false)
     }
@@ -216,7 +217,7 @@ export default function RecordatoriosPage() {
       if (!res.ok) throw new Error(data?.error || `Error ${res.status}`)
       if (configWhatsApp) setConfigWhatsApp({ ...configWhatsApp, ...updates })
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al guardar')
+      toast.error(e instanceof Error ? e.message : 'Error al guardar')
     } finally {
       setConfigSaveLoading(false)
     }
@@ -242,7 +243,7 @@ export default function RecordatoriosPage() {
             Activa el módulo de recordatorios automáticos por WhatsApp
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg mx-auto text-center">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-lg mx-auto text-center">
           <MessageCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">WhatsApp Premium</h2>
           <p className="text-gray-600 mb-6">
@@ -339,7 +340,7 @@ export default function RecordatoriosPage() {
               <h3 className="font-medium text-gray-900">Evolution API</h3>
             </div>
             {configLoading ? (
-              <p className="text-sm text-gray-500">Cargando...</p>
+              <div className="animate-pulse h-4 w-32 bg-gray-100 rounded" />
             ) : !hasEvolutionPremium ? (
               <>
                 <p className="text-sm text-gray-600 mb-4">
@@ -419,7 +420,7 @@ export default function RecordatoriosPage() {
 
       {/* Resumen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Recordatorios Pendientes</p>
@@ -431,7 +432,7 @@ export default function RecordatoriosPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Vencen Hoy</p>
@@ -445,7 +446,7 @@ export default function RecordatoriosPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Enviados</p>
@@ -476,12 +477,23 @@ export default function RecordatoriosPage() {
 
       {/* Lista de Recordatorios */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Cargando recordatorios...</p>
+        <div className="animate-pulse space-y-2">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-50">
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-4 w-40 bg-gray-200 rounded" />
+                  <div className="h-3 w-28 bg-gray-100 rounded" />
+                </div>
+                <div className="h-4 w-24 bg-gray-100 rounded" />
+                <div className="h-4 w-16 bg-gray-100 rounded" />
+                <div className="h-8 w-28 bg-gray-100 rounded-lg" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : recordatorios.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
           <MessageCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">No hay recordatorios pendientes. Cuando tengas cuotas por vencer, aquí podrás enviar avisos a tus clientes.</p>
           <p className="text-gray-400 text-sm mt-2">
@@ -489,9 +501,9 @@ export default function RecordatoriosPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -514,7 +526,7 @@ export default function RecordatoriosPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {recordatorios.map((recordatorio) => {
                   const estaEnviado = enviados.has(recordatorio.cuota.id)
                   const estaEnviando = enviando === recordatorio.cuota.id

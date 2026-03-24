@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jasicorporations.prestamos">
+
+    <!--
+      Plantilla de referencia. Sincroniza `package` con tu applicationId / namespace.
+      En tu proyecto REAL:
+      - Quita android:screenOrientation="portrait" (u orientación fija) de TODAS las <activity>.
+      - Añade android:resizeableActivity="true" en launcher y actividades con UI (tablets / pantalla grande).
+    -->
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Prestamos">
+
+        <!-- Sin android:screenOrientation — Google Play: no fijar orientación -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:resizeableActivity="true"
+            android:theme="@style/Theme.Prestamos">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -18,6 +18,7 @@ import { Input } from '@/components/Input'
 import { perfilesService } from '@/lib/services/perfiles'
 import { subscriptionService } from '@/lib/services/subscription'
 import { tesoreriaService, type RangoTiempo, type TesoreriaKPIs, type TesoreriaMovimiento } from '@/lib/services/tesoreria'
+import { toast } from '@/lib/toast'
 import type { Sucursal } from '@/types'
 import {
   AreaChart,
@@ -68,7 +69,7 @@ export default function TesoreriaPage() {
       setMovimientos(movData)
     } catch (error: any) {
       console.error('Error cargando tesorería:', error)
-      alert(error?.message || 'Error al cargar datos')
+      toast.error(error?.message || 'Error al cargar datos')
     } finally {
       setLoading(false)
     }
@@ -256,7 +257,7 @@ export default function TesoreriaPage() {
                 Detalle de movimientos
               </h3>
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-gray-100">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
@@ -266,7 +267,7 @@ export default function TesoreriaPage() {
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-100">
                     {movimientos.map((m) => (
                       <tr key={m.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-600">

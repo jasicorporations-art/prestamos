@@ -10,6 +10,7 @@ import { obtenerCargosMora } from '@/lib/services/mora'
 import type { Pago, Venta } from '@/types'
 import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
+import { toast } from '@/lib/toast'
 
 export default function PagosVentaPage() {
   const params = useParams()
@@ -75,7 +76,7 @@ export default function PagosVentaPage() {
       }
     } catch (error) {
       console.error('Error cargando datos:', error)
-      alert('Error al cargar los datos')
+      toast.error('Error al cargar los datos')
     } finally {
       setLoading(false)
     }
@@ -83,9 +84,30 @@ export default function PagosVentaPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-12">
-          <p className="text-gray-500">Cargando...</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
+        <div className="mb-6 h-9 w-56 bg-gray-200 rounded-lg" />
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-8">
+          <div className="grid grid-cols-2 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <div className="h-3 w-20 bg-gray-100 rounded" />
+                <div className="h-4 w-36 bg-gray-200 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center gap-6 px-6 py-4 border-b border-gray-50">
+              <div className="h-4 w-28 bg-gray-200 rounded" />
+              <div className="h-4 w-20 bg-gray-200 rounded" />
+              <div className="h-4 w-16 bg-gray-100 rounded" />
+              <div className="flex gap-2 ml-auto">
+                <div className="h-7 w-16 bg-gray-100 rounded-lg" />
+                <div className="h-7 w-7 bg-gray-100 rounded-lg" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -112,7 +134,7 @@ export default function PagosVentaPage() {
 
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">Recibos de Pago</h1>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-600">Cliente:</p>
@@ -145,7 +167,7 @@ export default function PagosVentaPage() {
       </div>
 
       {cargosMora.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg shadow p-6 mb-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl shadow-sm p-6 mb-6">
           <div className="flex items-start">
             <AlertTriangle className="w-6 h-6 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
             <div className="flex-1">
@@ -156,7 +178,7 @@ export default function PagosVentaPage() {
                 {cargosMora.map((cargo, index) => {
                   const fechaVenc = new Date(cargo.fechaVencimiento)
                   return (
-                    <div key={index} className="bg-white rounded-md p-3 border border-red-200">
+                    <div key={index} className="bg-white rounded-xl p-3 border border-red-200">
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="text-sm font-medium text-gray-900">
@@ -188,18 +210,18 @@ export default function PagosVentaPage() {
       )}
 
       {pagos.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
           <p className="text-gray-500">No hay pagos registrados para esta venta</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900">
               Historial de Pagos ({pagos.length})
             </h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -216,7 +238,7 @@ export default function PagosVentaPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {pagos.map((pago) => (
                   <tr key={pago.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

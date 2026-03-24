@@ -184,3 +184,65 @@ export async function obtenerCuotasPendientes(): Promise<CuotaPendiente[]> {
   })
 }
 
+
+/**
+ * Retorna el total de cuotas atrasadas (vencidas) en toda la empresa.
+ */
+export async function getTotalCuotasAtrasadasCount(): Promise<number> {
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const hoyIso = hoy.toISOString().slice(0, 10)
+
+  const qVenc = await supabase
+    .from('cuotas_detalladas')
+    .select('venta_id,numero_cuota,estado,fecha_vencimiento,fecha_pago')
+    .lt('fecha_vencimiento', hoyIso)
+
+  if (qVenc.error || !qVenc.data) return 0
+  const rows = qVenc.data as Array<{
+    venta_id?: string | null
+    numero_cuota?: number | null
+    estado?: string | null
+    fecha_vencimiento?: string | null
+    fecha_pago?: string | null
+  }>
+
+  const pendientes = rows.filter((r) => {
+    const estado = String(r.estado || '').toLowerCase().trim()
+    if (estado === 'pagada' || estado === 'pagado') return false
+    if (r.fecha_pago) return false
+    return true
+  })
+  return pendientes.length
+}
+
+/**
+ * Retorna un mapa de ventaId → cantidad de cuotas atrasadas para las ventas dadas.
+ */
+export async function getCuotasAtrasadasPorVentas(
+  ventaIds: string[]
+): Promise<Record<string, number>> {
+  if (!ventaIds.length) return {}
+
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const hoyIso = hoy.toISOString().slice(0, 10)
+
+  const { data, error } = await supabase
+    .from('cuotas_detalladas')
+    .select('venta_id,estado,fecha_vencimiento,fecha_pago')
+    .in('venta_id', ventaIds)
+    .lt('fecha_vencimiento', hoyIso)
+
+  if (error || !data) return {}
+
+  const result: Record<string, number> = {}
+  for (const row of data) {
+    const estado = String((row as any).estado || '').toLowerCase().trim()
+    const fechaPago = (row as any).fecha_pago
+    if (estado === 'pagada' || estado === 'pagado' || fechaPago) continue
+    const vid = (row as any).venta_id as string
+    result[vid] = (result[vid] ?? 0) + 1
+  }
+  return result
+}

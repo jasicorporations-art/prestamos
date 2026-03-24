@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Ajusta el nombre del estilo al que referencia tu AndroidManifest.xml
+      (android:theme="@style/Theme.Prestamos" o AppTheme, etc.).
+    -->
+    <style name="Theme.Prestamos" parent="Theme.Material3.Light.NoActionBar">
+        <!-- Permite dibujar detrás de barras del sistema -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Recortes (notch) — contenido usable en toda la pantalla -->
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">
+            shortEdges
+        </item>
+    </style>
+</resources>

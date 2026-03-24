@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Home, Package, Users, ShoppingCart, DollarSign, LogOut, BarChart3, Bell, Activity, MapPin, UserCog, Wallet, Key, AlertTriangle, HelpCircle, Headphones, MessageCircle, Database, Shield, Archive } from 'lucide-react'
+import { Home, Package, Users, ShoppingCart, DollarSign, LogOut, BarChart3, Bell, Activity, MapPin, UserCog, Wallet, Key, AlertTriangle, HelpCircle, Headphones, MessageCircle, Database, Shield, Archive, ClipboardCheck, ClipboardList, Map, Landmark, Settings, Route, FileBarChart2, TrendingUp } from 'lucide-react'
 import { authService } from '@/lib/services/auth'
 import { useCompania } from '@/lib/contexts/CompaniaContext'
 import { Button } from './Button'
@@ -35,7 +35,7 @@ export function Navigation() {
           // Verificar rol del usuario
           try {
             const rol = await perfilesService.getRolActual()
-            const esAdmin = rol === 'Admin'
+            const esAdmin = (rol ?? '').toLowerCase() === 'admin'
             const esSuperAdmin = rol === 'super_admin'
             console.log('🔐 Usuario es Admin:', esAdmin, '| Super Admin:', esSuperAdmin)
             setIsAdmin(esAdmin || esSuperAdmin)
@@ -152,18 +152,8 @@ export function Navigation() {
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
                 <span className="hidden sm:inline">Cobros</span>
               </Link>
-              <Link
-                href="/caja"
-                className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                  pathname === '/caja'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Wallet className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
-                <span className="hidden sm:inline">Caja</span>
-              </Link>
-              
+              {/* Caja: oculto (área no operativa por ahora) */}
+
               {/* Panel Admin - solo Admin y Super Admin (vendedores no ven este enlace) */}
               {isAdmin && (
                 <Link
@@ -178,32 +168,18 @@ export function Navigation() {
                   <span className="hidden sm:inline">Panel Admin</span>
                 </Link>
               )}
-              
-              {isAdmin && (
-                <Link
-                  href="/admin/usuarios"
-                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    pathname === '/admin/usuarios'
-                      ? 'bg-primary-100 text-primary-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <UserCog className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Usuarios</span>
-                </Link>
-              )}
 
               {isAdmin && (
                 <Link
-                  href="/admin/sucursales"
+                  href="/admin/aprobaciones"
                   className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    pathname === '/admin/sucursales'
+                    pathname === '/admin/aprobaciones'
                       ? 'bg-primary-100 text-primary-700'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Sucursales</span>
+                  <ClipboardCheck className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Aprobaciones</span>
                 </Link>
               )}
 
@@ -223,15 +199,139 @@ export function Navigation() {
 
               {isAdmin && (
                 <Link
-                  href="/admin/mora"
+                  href="/admin/reportes"
                   className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    pathname === '/admin/mora'
+                    pathname === '/admin/reportes'
                       ? 'bg-primary-100 text-primary-700'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Gestión de Mora</span>
+                  <FileBarChart2 className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Reportes</span>
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin/rentabilidad"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/rentabilidad'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Rentabilidad</span>
+                </Link>
+              )}
+
+              <Link
+                href="/cobrador/hoy"
+                className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  pathname === '/cobrador/hoy'
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Route className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                <span className="hidden sm:inline">Mi Ruta Hoy</span>
+              </Link>
+
+              {isAdmin && (
+                <Link
+                  href="/admin/mapa-cobros"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/mapa-cobros'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Map className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Mapa de Cobros</span>
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin/credito-local"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/credito-local'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Landmark className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Crédito local</span>
+                </Link>
+              )}
+
+              {isAdmin && planType !== 'BRONCE' && (
+                <Link
+                  href="/admin/migracion"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/migracion'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Database className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Migrar Cartera</span>
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin/configuracion-empresa"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/configuracion-empresa'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Configuración de empresa</span>
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin/sucursales"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/sucursales'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Sucursales</span>
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin/rutas"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/rutas'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Route className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Rutas</span>
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin/usuarios"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/usuarios'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <UserCog className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Usuarios</span>
                 </Link>
               )}
 
@@ -248,6 +348,7 @@ export function Navigation() {
                   <span className="hidden sm:inline">Cajas</span>
                 </Link>
               )}
+
               {isAdmin && planType !== 'BRONCE' && (
                 <Link
                   href="/admin/tesoreria"
@@ -261,32 +362,7 @@ export function Navigation() {
                   <span className="hidden sm:inline">Tesorería</span>
                 </Link>
               )}
-              {isSuperAdmin && (
-                <Link
-                  href="/super-admin"
-                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    pathname === '/super-admin'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'text-amber-700 hover:bg-amber-50 border border-amber-200'
-                  }`}
-                >
-                  <Shield className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Centro de Comando</span>
-                </Link>
-              )}
-              {isAdmin && planType !== 'BRONCE' && (
-                <Link
-                  href="/admin/migracion"
-                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    pathname === '/admin/migracion'
-                      ? 'bg-primary-100 text-primary-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Database className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Migrar Cartera</span>
-                </Link>
-              )}
+
               {isAdmin && (
                 <Link
                   href="/admin/backup"
@@ -299,6 +375,47 @@ export function Navigation() {
                   <Archive className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
                   <span className="hidden sm:inline">Backup</span>
                 </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin/mora"
+                  className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    pathname === '/admin/mora'
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Gestión de Mora</span>
+                </Link>
+              )}
+
+              {isSuperAdmin && (
+                <>
+                  <Link
+                    href="/super-admin"
+                    className={`flex items-center px-2 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                      pathname === '/super-admin'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'text-amber-700 hover:bg-amber-50 border border-amber-200'
+                    }`}
+                  >
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">Centro de Comando</span>
+                  </Link>
+                  <Link
+                    href="/super-admin/auditoria"
+                    className={`flex items-center px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                      pathname === '/super-admin/auditoria'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'text-amber-700 hover:bg-amber-50 border border-amber-200'
+                    }`}
+                  >
+                    <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-1 shrink-0" />
+                    <span className="hidden sm:inline text-xs sm:text-sm">Auditoría</span>
+                  </Link>
+                </>
               )}
               
               <Link

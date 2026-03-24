@@ -12,6 +12,13 @@ import { authService } from '@/lib/services/auth'
 import { supabase } from '@/lib/supabase'
 import type { Caja, MovimientoCaja } from '@/types'
 
+function toLocalYMD(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export default function AdminCajasPage() {
   const router = useRouter()
   const [cajas, setCajas] = useState<Caja[]>([])
@@ -117,8 +124,8 @@ export default function AdminCajasPage() {
       fechaInicio.setHours(0, 0, 0, 0) // Iniciar desde el inicio del día
 
       // Calcular totales de pagos y salidas para cada sucursal en el período (consulta única)
-      const fechaInicioStr = fechaInicio.toISOString().split('T')[0]
-      const fechaFinStr = fechaFin.toISOString().split('T')[0]
+      const fechaInicioStr = toLocalYMD(fechaInicio)
+      const fechaFinStr = toLocalYMD(fechaFin)
       
       console.log('🔄 [AdminCajas] Iniciando cálculo de totales:', {
         sucursalesUnicas: Array.from(sucursalesUnicas),
@@ -165,11 +172,10 @@ export default function AdminCajasPage() {
     const hoy = new Date()
     const inicio = new Date()
     inicio.setDate(hoy.getDate() - 7)
-    const toDate = (d: Date) => d.toISOString().split('T')[0]
     setMovFilters((prev) => ({
       ...prev,
-      fechaInicio: prev.fechaInicio || toDate(inicio),
-      fechaFin: prev.fechaFin || toDate(hoy),
+      fechaInicio: prev.fechaInicio || toLocalYMD(inicio),
+      fechaFin: prev.fechaFin || toLocalYMD(hoy),
     }))
   }, [isAdmin])
 

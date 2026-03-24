@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { ArrowLeft, Plus, Route, ChevronDown, ShieldAlert, Edit } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import Link from 'next/link'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
@@ -92,7 +93,7 @@ export default function RutasAdminPage() {
       loadVentasActivas()
       loadRutas()
     } catch (e: any) {
-      alert(`Error: ${e.message}`)
+      toast.error(`Error: ${e.message}`)
     }
   }
 
@@ -102,13 +103,13 @@ export default function RutasAdminPage() {
       loadVentasActivas()
       loadRutas()
     } catch (e: any) {
-      alert(`Error: ${e.message}`)
+      toast.error(`Error: ${e.message}`)
     }
   }
 
   async function handleCrearRuta() {
     if (!nombreRuta.trim() || !sucursalId) {
-      alert('Ingresa el nombre de la ruta y selecciona sucursal')
+      toast.warning('Ingresa el nombre de la ruta y selecciona sucursal')
       return
     }
     const sucursal = sucursales.find((s) => s.id === sucursalId)
@@ -127,7 +128,7 @@ export default function RutasAdminPage() {
       setIsModalOpen(false)
       loadRutas()
     } catch (e: any) {
-      alert(`Error: ${e.message || 'No se pudo crear la ruta'}`)
+      toast.error(`Error: ${e.message || 'No se pudo crear la ruta'}`)
     }
   }
 
@@ -140,7 +141,7 @@ export default function RutasAdminPage() {
   async function handleGuardarEdicionRuta() {
     if (!editingRuta) return
     if (!editNombreRuta.trim()) {
-      alert('El nombre de la ruta es requerido')
+      toast.warning('El nombre de la ruta es requerido')
       return
     }
     try {
@@ -155,15 +156,17 @@ export default function RutasAdminPage() {
       setEditingRuta(null)
       loadRutas()
     } catch (e: any) {
-      alert(`Error: ${e.message || 'No se pudo actualizar la ruta'}`)
+      toast.error(`Error: ${e.message || 'No se pudo actualizar la ruta'}`)
     }
   }
 
   if (isAdmin === false) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg flex items-start gap-4">
-          <ShieldAlert className="w-10 h-10 flex-shrink-0 text-amber-600" />
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <ShieldAlert className="w-5 h-5 text-amber-600" />
+          </div>
           <div>
             <h2 className="text-lg font-semibold text-amber-900">Acceso restringido</h2>
             <p className="text-amber-800 mt-1">
@@ -201,7 +204,7 @@ export default function RutasAdminPage() {
           <select
             value={sucursalId}
             onChange={(e) => setSucursalId(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md"
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           >
             {sucursales.map((s) => (
               <option key={s.id} value={s.id}>{s.nombre}</option>
@@ -217,9 +220,22 @@ export default function RutasAdminPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500">Cargando...</p>
+        <div className="animate-pulse space-y-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="flex items-center gap-3 p-4">
+                <div className="w-5 h-5 bg-gray-200 rounded" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-4 bg-gray-200 rounded w-40" />
+                  <div className="h-3 bg-gray-100 rounded w-24" />
+                </div>
+                <div className="w-8 h-8 bg-gray-100 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : rutas.length === 0 ? (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
           <p className="text-amber-800 font-medium">No hay rutas creadas</p>
           <p className="text-amber-700 text-sm mt-2">
             Crea una ruta para asignar préstamos y que aparezcan en &quot;Mi Ruta de Hoy&quot;.
@@ -235,7 +251,7 @@ export default function RutasAdminPage() {
             const ventasSinRuta = ventasActivas.filter((v: any) => !v.ruta_id)
             const expanded = rutaExpandida === r.id
             return (
-              <div key={r.id} className="bg-white rounded-lg shadow border overflow-hidden">
+              <div key={r.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center">
                   <button
                     type="button"
@@ -268,7 +284,7 @@ export default function RutasAdminPage() {
                   <div className="border-t p-4 bg-gray-50 space-y-3">
                     <p className="text-sm font-medium text-gray-700">Préstamos en esta ruta:</p>
                     {ventasEnRuta.map((v: any, idx: number) => (
-                      <div key={v.id} className="flex items-center justify-between bg-white p-2 rounded">
+                      <div key={v.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100">
                         <span className="text-sm">#{idx + 1} {v.cliente?.nombre_completo} - ${(v.saldo_pendiente ?? 0).toLocaleString('es-DO')}</span>
                         <Button variant="secondary" size="sm" onClick={() => quitarVentaDeRuta(v.id)}>
                           Quitar
@@ -279,7 +295,7 @@ export default function RutasAdminPage() {
                       <>
                         <p className="text-sm font-medium text-gray-700 mt-3">Agregar préstamo:</p>
                         <select
-                          className="w-full px-3 py-2 border rounded-md text-sm"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                           onChange={(e) => {
                             const ventaId = e.target.value
                             if (!ventaId) return
@@ -319,7 +335,7 @@ export default function RutasAdminPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
             <textarea
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               rows={2}
               value={descripcionRuta}
               onChange={(e) => setDescripcionRuta(e.target.value)}
@@ -352,7 +368,7 @@ export default function RutasAdminPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
             <textarea
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               rows={2}
               value={editDescripcionRuta}
               onChange={(e) => setEditDescripcionRuta(e.target.value)}

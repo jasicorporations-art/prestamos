@@ -8,9 +8,12 @@ import { ventasService } from '@/lib/services/ventas'
 import { pagosService } from '@/lib/services/pagos'
 import { authService } from '@/lib/services/auth'
 import { supabase } from '@/lib/supabase'
+import { isValidUUID } from '@/lib/utils/compania'
 import type { Venta, Pago } from '@/types'
 import { formatDateCustom } from '@/lib/utils/dateFormat'
 import { formatearPlazoVenta } from '@/lib/utils/plazoVenta'
+import { formatCurrency } from '@/lib/utils/currency'
+import { toast } from '@/lib/toast'
 
 export default function FacturaPage() {
   const params = useParams()
@@ -28,6 +31,7 @@ export default function FacturaPage() {
     telefono?: string
     email?: string
   } | null>(null)
+  const [nombreEmpresa, setNombreEmpresa] = useState<string | null>(null)
 
   useEffect(() => {
     if (ventaId) {
@@ -72,9 +76,19 @@ export default function FacturaPage() {
       setVenta(ventaData)
       setPagos(pagosData || [])
       setCuotaFija((cuotaResponse as any)?.data?.[0]?.cuota_fija ?? null)
+      // Nombre de empresa desde BD para impresión (nunca mostrar UUID)
+      const empresaId = (ventaData as { empresa_id?: string; compania_id?: string })?.empresa_id ?? (ventaData as { empresa_id?: string; compania_id?: string })?.compania_id
+      if (empresaId) {
+        try {
+          const { data: emp } = await supabase.from('empresas').select('nombre').eq('id', empresaId).single() as { data: { nombre?: string } | null }
+          if (emp?.nombre) setNombreEmpresa(emp.nombre)
+        } catch (e) {
+          console.warn('No se pudo cargar nombre de empresa para factura:', e)
+        }
+      }
     } catch (error) {
       console.error('Error cargando datos:', error)
-      alert('Error al cargar los datos del comprobante')
+      toast.error('Error al cargar los datos del comprobante')
     } finally {
       setLoading(false)
     }
@@ -92,38 +106,28 @@ export default function FacturaPage() {
     try {
       // Verificar que los datos estén cargados antes de imprimir
       if (!venta) {
-        const errorMsg = 'Error: No se puede imprimir. El comprobante no está cargado completamente.'
-        console.error(errorMsg)
-        alert(errorMsg)
+        toast.error('No se puede imprimir. El comprobante no está cargado completamente.')
         return
       }
-      
-      // Verificar que window.print existe
+
       if (typeof window === 'undefined' || typeof window.print !== 'function') {
-        const errorMsg = 'Error: window.print no está disponible en este entorno.'
-        console.error(errorMsg)
-        alert(errorMsg)
+        toast.error('window.print no está disponible en este entorno.')
         return
       }
-      
-      console.log('Intentando imprimir comprobante...')
-      
-      // Usar requestAnimationFrame para asegurar que el DOM esté completamente renderizado
+
       requestAnimationFrame(() => {
         setTimeout(() => {
           try {
-            console.log('Llamando a window.print()')
             window.print()
-            console.log('window.print() llamado exitosamente')
           } catch (error) {
             console.error('Error al llamar window.print():', error)
-            alert(`Error al abrir el diálogo de impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+            toast.error(`Error al abrir el diálogo de impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
           }
-        }, 200) // Aumentado a 200ms para producción
+        }, 200)
       })
     } catch (error) {
       console.error('Error en handlePrint:', error)
-      alert(`Error al preparar la impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+      toast.error(`Error al preparar la impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     }
   }
 
@@ -149,6 +153,11 @@ export default function FacturaPage() {
 
   const totalPagado = pagos.reduce((sum, pago) => sum + pago.monto, 0)
   const saldoPendienteInicial = venta ? venta.saldo_pendiente + totalPagado : 0
+  // Nombre para impresión: solo desde BD o texto que no sea UUID
+  const displayNombreEmpresa =
+    nombreEmpresa ??
+    (userInfo?.compania && !isValidUUID(userInfo.compania) ? userInfo.compania : null) ??
+    'JASICORPORATIONS'
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -169,10 +178,10 @@ export default function FacturaPage() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             JASICORPORATIONS
           </h1>
-          {userInfo && (
+          {(userInfo || displayNombreEmpresa) && (
             <div className="text-sm text-gray-600 space-y-1 mt-4">
-              {userInfo.compania && !/jasicorporation/i.test(userInfo.compania) && (
-                <p className="text-3xl font-bold text-gray-900 mb-2">{userInfo.compania}</p>
+              {displayNombreEmpresa && !/jasicorporation/i.test(displayNombreEmpresa) && (
+                <p className="text-3xl font-bold text-gray-900 mb-2">{displayNombreEmpresa}</p>
               )}
               {(userInfo.nombre || userInfo.apellido) && (
                 <p>
@@ -277,10 +286,7 @@ export default function FacturaPage() {
                 )}
                 <div>
                   <p className="text-sm text-gray-600">Monto Total:</p>
-                  <p className="font-medium text-lg">${venta.monto_total.toLocaleString('es-DO', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}</p>
+                  <p className="font-medium text-lg">${formatCurrency(venta.monto_total)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Cantidad de Cuotas:</p>
@@ -289,19 +295,13 @@ export default function FacturaPage() {
                 <div>
                   <p className="text-sm text-gray-600">Saldo a Financiar:</p>
                   <p className="font-medium text-lg">
-                    ${saldoPendienteInicial.toLocaleString('es-DO', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    ${formatCurrency(saldoPendienteInicial)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Valor por Cuota:</p>
                   <p className="font-medium">
-                    ${((cuotaFija ?? (venta.cantidad_cuotas > 0 ? saldoPendienteInicial / venta.cantidad_cuotas : 0))).toLocaleString('es-DO', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    ${formatCurrency(cuotaFija ?? (venta.cantidad_cuotas > 0 ? saldoPendienteInicial / venta.cantidad_cuotas : 0))}
                   </p>
                 </div>
               </div>
@@ -312,7 +312,7 @@ export default function FacturaPage() {
           <div className="mb-6 border-b border-gray-200 pb-4">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Historial de Pagos</h2>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -326,7 +326,7 @@ export default function FacturaPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-gray-100">
                   {pagos.map((pago) => (
                     <tr key={pago.id}>
                       <td className="px-4 py-2 text-sm text-gray-900">
@@ -336,7 +336,7 @@ export default function FacturaPage() {
                         {pago.numero_cuota || 'N/A'}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-900 text-right">
-                        ${pago.monto.toLocaleString('es-DO')}
+                        ${formatCurrency(pago.monto)}
                       </td>
                     </tr>
                   ))}
@@ -352,13 +352,13 @@ export default function FacturaPage() {
             <div>
               <p className="text-sm text-gray-600">Total Pagado:</p>
               <p className="font-semibold text-lg text-green-600">
-                ${totalPagado.toLocaleString('es-DO')}
+                ${formatCurrency(totalPagado)}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Saldo Pendiente:</p>
               <p className="font-semibold text-lg text-red-600">
-                ${venta.saldo_pendiente.toLocaleString('es-DO')}
+                ${formatCurrency(venta.saldo_pendiente)}
               </p>
             </div>
           </div>

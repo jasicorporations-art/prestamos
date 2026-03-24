@@ -263,3 +263,25 @@ export async function obtenerVentasConMora(): Promise<Array<{ venta: Venta; carg
 
 
 
+
+/**
+ * Convierte una cadena de fecha (YYYY-MM-DD o ISO) a medianoche local.
+ * Evita desplazamientos de zona horaria al trabajar solo con la parte de fecha.
+ */
+export function parseFechaLocalMidnight(s: string): Date {
+  // Si tiene parte de hora, extraer solo la fecha
+  const datePart = s.split('T')[0]
+  const [year, month, day] = datePart.split('-').map(Number)
+  const d = new Date(year, month - 1, day)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/**
+ * Ajusta un objeto Date a medianoche local (00:00:00.000) del mismo día.
+ */
+export function toLocalMidnight(d: Date): Date {
+  const result = new Date(d)
+  result.setHours(0, 0, 0, 0)
+  return result
+}

@@ -303,9 +303,9 @@ export default function MigracionCarteraPage() {
               </div>
             )}
 
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto max-h-[350px] overflow-y-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-gray-100">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
@@ -316,7 +316,7 @@ export default function MigracionCarteraPage() {
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-20">Estado</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-100">
                     {rows.map((row) => (
                       <tr key={row.rowIndex} className={row.isValid ? '' : 'bg-red-50'}>
                         <td className="px-4 py-3 text-sm text-gray-500">{row.rowIndex}</td>

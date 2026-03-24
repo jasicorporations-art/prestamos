@@ -20,12 +20,21 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const [loading, setLoading] = useState(true)
   const [authenticated, setAuthenticated] = useState(false)
   const [subscriptionActive, setSubscriptionActive] = useState(true)
+  const isPortalClientePage = pathname.startsWith('/portal-cliente')
 
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null
 
     // Si está en una página pública, no verificar autenticación
-    const isPublicPage = pathname === '/login' || pathname === '/register' || pathname === '/' || pathname === '/landing' || pathname === '/precios' || pathname === '/recuperar-contrasena' || pathname === '/actualizar-contrasena' || pathname === '/recuperar-contrasena' || pathname === '/actualizar-contrasena'
+    const isPublicPage =
+      pathname === '/login' ||
+      pathname === '/register' ||
+      pathname === '/' ||
+      pathname === '/landing' ||
+      pathname === '/precios' ||
+      pathname === '/recuperar-contrasena' ||
+      pathname === '/actualizar-contrasena' ||
+      isPortalClientePage
     const isLegalAcceptancePage = pathname === '/aceptacion-legal'
     
     if (isPublicPage) {
@@ -83,13 +92,22 @@ export function AuthGuard({ children }: AuthGuardProps) {
               }
             }
             if (pathname === '/super-admin') {
-              if (perfil?.rol !== 'super_admin') {
+              const r = String(perfil?.rol || '')
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, '_')
+              if (r !== 'super_admin' && r !== 'superadmin') {
                 router.push('/dashboard')
                 return
               }
             }
             const appId = getAppId()
-            const appIdValido = !appId || perfil?.rol === 'super_admin' || !perfil?.app_id || perfil.app_id === appId
+            const rolNorm = String(perfil?.rol || '')
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, '_')
+            const esSuper = rolNorm === 'super_admin' || rolNorm === 'superadmin'
+            const appIdValido = !appId || esSuper || !perfil?.app_id || perfil.app_id === appId
             if (!appIdValido) {
               await authService.signOut()
               router.push('/login?error=Acceso%20no%20autorizado%20para%20esta%20plataforma')
@@ -170,7 +188,15 @@ export function AuthGuard({ children }: AuthGuardProps) {
             console.error('Error cerrando sesión activa:', error)
           }
           setAuthenticated(false)
-          if (pathname !== '/login' && pathname !== '/register' && pathname !== '/' && pathname !== '/landing' && pathname !== '/recuperar-contrasena' && pathname !== '/actualizar-contrasena') {
+          if (
+            pathname !== '/login' &&
+            pathname !== '/register' &&
+            pathname !== '/' &&
+            pathname !== '/landing' &&
+            pathname !== '/recuperar-contrasena' &&
+            pathname !== '/actualizar-contrasena' &&
+            !isPortalClientePage
+          ) {
             router.push('/login')
           }
         }
@@ -186,10 +212,18 @@ export function AuthGuard({ children }: AuthGuardProps) {
         subscription.unsubscribe()
       }
     }
-  }, [router, pathname])
+  }, [router, pathname, isPortalClientePage])
 
   // Determinar si es página pública (debe estar antes de los hooks)
-  const isPublicPage = pathname === '/login' || pathname === '/register' || pathname === '/' || pathname === '/landing' || pathname === '/precios' || pathname === '/recuperar-contrasena' || pathname === '/actualizar-contrasena'
+  const isPublicPage =
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/' ||
+    pathname === '/landing' ||
+    pathname === '/precios' ||
+    pathname === '/recuperar-contrasena' ||
+    pathname === '/actualizar-contrasena' ||
+    isPortalClientePage
 
   // Hook para monitorear inactividad y cerrar sesión automáticamente (30 minutos)
   // Debe estar antes de cualquier return condicional

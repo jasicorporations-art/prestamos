@@ -22,12 +22,9 @@ export default function AdminLayout({
     let cancelled = false
     async function check() {
       try {
-        const rol = await perfilesService.getRolActual()
-        const esAdmin = rol === 'Admin'
-        const esSuperAdmin = rol === 'super_admin'
-        if (!cancelled) {
-          setAllowed(esAdmin || esSuperAdmin)
-        }
+        // esAdmin() usa getRolActual() con roles normalizados (p. ej. "admin" en BD → Admin)
+        const ok = await perfilesService.esAdmin()
+        if (!cancelled) setAllowed(ok)
       } catch {
         if (!cancelled) setAllowed(false)
       } finally {

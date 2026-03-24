@@ -6,6 +6,7 @@ import { ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
 import { authService } from '@/lib/services/auth'
+import { toast } from '@/lib/toast'
 
 export default function CambiarContrasenaPage() {
   const router = useRouter()
@@ -60,11 +61,11 @@ export default function CambiarContrasenaPage() {
       setLoading(true)
       await authService.cambiarContrasena(formData.contrasenaActual, formData.nuevaContrasena)
       
-      alert('✅ Contraseña cambiada exitosamente')
+      toast.success('Contraseña cambiada exitosamente')
       router.push('/dashboard')
     } catch (error: any) {
       console.error('Error cambiando contraseña:', error)
-      alert(`Error: ${error.message || 'Error al cambiar la contraseña'}`)
+      toast.error(`Error: ${error.message || 'Error al cambiar la contraseña'}`)
     } finally {
       setLoading(false)
     }
@@ -89,7 +90,7 @@ export default function CambiarContrasenaPage() {
         </p>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Contraseña Actual */}
           <div>

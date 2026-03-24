@@ -1301,84 +1301,122 @@ export const cajasService = {
    * Obtiene ingresos y salidas del período para una sucursal (optimizado - una sola consulta)
    */
   async getIngresosYSalidasDelPeriodo(
-    sucursalId: string, 
-    fechaInicio: string, 
+    sucursalId: string,
+    fechaInicio: string,
     fechaFin: string
   ): Promise<{ ingresos: number; salidas: number }> {
     try {
-      // Obtener empresa_id para filtrar por empresa (seguridad)
       const perfil = await perfilesService.getPerfilActual()
-      const empresaId = perfil?.empresa_id
+      const empresaId = getCompaniaActual() || perfil?.empresa_id || perfil?.compania_id || null
 
-      console.log('📊 [cajasService.getIngresosYSalidasDelPeriodo] Calculando totales:', {
-        sucursalId,
-        fechaInicio,
-        fechaFin,
-        empresaId
-      })
+      const [yi, mi, di] = fechaInicio.split('-').map(Number)
+      const [yf, mf, df] = fechaFin.split('-').map(Number)
+      const start = new Date(yi, mi - 1, di, 0, 0, 0, 0)
+      const end = new Date(yf, mf - 1, df, 23, 59, 59, 999)
+      const startISO = start.toISOString()
+      const endISO = end.toISOString()
 
-      // Calcular ingresos (pagos) del período
-      const fechaInicioISO = `${fechaInicio}T00:00:00`
-      const fechaFinISO = `${fechaFin}T23:59:59`
-      
-      type PagoRow = { monto?: number; fecha_hora?: string; created_at?: string; fecha_pago?: string; empresa_id?: string; compania_id?: string; sucursal_donde_se_cobro?: string; sucursal_id?: string }
-      // Obtener pagos del período (por empresa; sucursal se filtra en memoria para no perder pagos sin sucursal_donde_se_cobro)
-      let queryIngresos = supabase
-        .from('pagos')
-        .select('monto, fecha_hora, created_at, fecha_pago, empresa_id, compania_id, sucursal_donde_se_cobro, sucursal_id')
-        .gte('fecha_pago', fechaInicioISO)
-        .lte('fecha_pago', fechaFinISO)
-
-      const { data: ingresosData, error: ingresosError } = await queryIngresos as { data: PagoRow[] | null; error: unknown }
-
-      const filtrarPorFecha = (list: PagoRow[]) => {
-        return list.filter((pago: any) => {
-          const fechaPago = pago.fecha_hora || pago.created_at || pago.fecha_pago
-          if (!fechaPago) return false
-          const fechaPagoDate = new Date(fechaPago)
-          return fechaPagoDate >= new Date(fechaInicioISO) && fechaPagoDate <= new Date(fechaFinISO)
-        })
-      }
-      const filtrarPorSucursal = (list: any[]) => {
-        return list.filter((pago: any) => {
-          const sc = pago.sucursal_donde_se_cobro
-          const si = pago.sucursal_id
-          return sc === sucursalId || si === sucursalId || (!sc && !si)
-        })
+      const enVentanaLocal = (t: string | null | undefined) => {
+        if (!t) return false
+        const d = new Date(t)
+        return d >= start && d <= end
       }
 
-      let totalIngresos = 0
-      if (ingresosError) {
-        console.error('❌ [cajasService.getIngresosYSalidasDelPeriodo] Error obteniendo ingresos:', ingresosError)
-        const { data: fallbackData } = await supabase
-          .from('pagos')
-          .select('monto, fecha_hora, created_at, fecha_pago, empresa_id, compania_id, sucursal_donde_se_cobro, sucursal_id') as { data: PagoRow[] | null }
-        let list = filtrarPorFecha(fallbackData || [])
-        if (empresaId) list = list.filter((p: any) => p.empresa_id === empresaId || p.compania_id === empresaId)
-        list = filtrarPorSucursal(list)
-        totalIngresos = list.reduce((sum, p) => sum + (p.monto || 0), 0)
-      } else {
-        let list = filtrarPorFecha(ingresosData || [])
-        if (empresaId) list = list.filter((p: any) => p.empresa_id === empresaId || p.compania_id === empresaId)
-        list = filtrarPorSucursal(list)
-        totalIngresos = list.reduce((sum, p) => sum + (p.monto || 0), 0)
+      type PagoRow = {
+        id?: string
+        monto?: number
+        fecha_hora?: string
+        created_at?: string
+        fecha_pago?: string
+        empresa_id?: string
+        compania_id?: string
+        sucursal_donde_se_cobro?: string
+        sucursal_id?: string
+      }
+      const pagoSelect =
+        'id, monto, fecha_hora, created_at, fecha_pago, empresa_id, compania_id, sucursal_donde_se_cobro, sucursal_id'
+
+      const mergePagos = (rows: PagoRow[] | null) => {
+        const map = new Map<string, PagoRow>()
+        for (const p of rows || []) {
+          const key = p.id ?? `${p.monto}-${p.fecha_pago}-${p.created_at}`
+          map.set(key, p)
+        }
+        return Array.from(map.values())
       }
 
-      const { data: salidasData, error: salidasError } = await supabase
+      let pagosPorFechaPago: PagoRow[] = []
+      let q1 = supabase.from('pagos').select(pagoSelect).gte('fecha_pago', startISO).lte('fecha_pago', endISO)
+      if (empresaId) {
+        q1 = q1.or(`empresa_id.eq.${empresaId},compania_id.eq.${empresaId}`)
+      }
+      const { data: d1, error: e1 } = await q1
+      if (!e1) pagosPorFechaPago = d1 || []
+
+      const padMs = 14 * 86400000
+      const wideStart = new Date(start.getTime() - padMs).toISOString()
+      const wideEnd = new Date(end.getTime() + padMs).toISOString()
+      let q2 = supabase.from('pagos').select(pagoSelect).gte('created_at', wideStart).lte('created_at', wideEnd)
+      if (empresaId) {
+        q2 = q2.or(`empresa_id.eq.${empresaId},compania_id.eq.${empresaId}`)
+      }
+      const { data: d2, error: e2 } = await q2
+      let pagosPorCreated = !e2 ? d2 || [] : []
+
+      let pagosMerged = mergePagos([...pagosPorFechaPago, ...pagosPorCreated])
+      if (empresaId) {
+        pagosMerged = pagosMerged.filter(
+          (p) => p.empresa_id === empresaId || p.compania_id === empresaId
+        )
+      }
+
+      let totalPagosPeriodo = 0
+      for (const p of pagosMerged) {
+        if (p.sucursal_donde_se_cobro !== sucursalId && p.sucursal_id !== sucursalId) continue
+        const ref = p.fecha_pago || p.fecha_hora || p.created_at
+        if (!enVentanaLocal(ref)) continue
+        totalPagosPeriodo += Number(p.monto) || 0
+      }
+
+      const movSelect = 'id, monto, tipo, fecha_hora, created_at'
+      const { data: movFh, error: errFh } = await supabase
         .from('movimientos_caja')
-        .select('monto, fecha_hora')
+        .select(movSelect)
         .eq('sucursal_id', sucursalId)
-        .eq('tipo', 'Salida')
-        .gte('fecha_hora', fechaInicioISO)
-        .lte('fecha_hora', fechaFinISO) as { data: { monto?: number }[] | null; error: unknown }
+        .in('tipo', ['Entrada', 'Salida'])
+        .gte('fecha_hora', startISO)
+        .lte('fecha_hora', endISO)
 
-      if (salidasError) {
-        console.error('❌ [cajasService.getIngresosYSalidasDelPeriodo] Error obteniendo salidas:', salidasError)
+      const { data: movCa, error: errCa } = await supabase
+        .from('movimientos_caja')
+        .select(movSelect)
+        .eq('sucursal_id', sucursalId)
+        .in('tipo', ['Entrada', 'Salida'])
+        .is('fecha_hora', null)
+        .gte('created_at', startISO)
+        .lte('created_at', endISO)
+
+      if (errFh) console.error('❌ [cajasService.getIngresosYSalidasDelPeriodo] movimientos fecha_hora:', errFh)
+      if (errCa) console.error('❌ [cajasService.getIngresosYSalidasDelPeriodo] movimientos created_at:', errCa)
+
+      const movMap = new Map<string, { monto?: number; tipo?: string; fecha_hora?: string; created_at?: string }>()
+      for (const m of [...(movFh || []), ...(movCa || [])]) {
+        const row = m as { id?: string; monto?: number; tipo?: string; fecha_hora?: string; created_at?: string }
+        if (row.id) movMap.set(row.id, row)
       }
-      const totalSalidas = salidasData?.reduce((sum, m) => sum + (m.monto || 0), 0) || 0
+
+      let ingresosMov = 0
+      let totalSalidas = 0
+      for (const m of movMap.values()) {
+        const ts = m.fecha_hora || m.created_at
+        if (!enVentanaLocal(ts)) continue
+        const mo = Number(m.monto) || 0
+        if (m.tipo === 'Entrada') ingresosMov += mo
+        else if (m.tipo === 'Salida') totalSalidas += mo
+      }
 
       return {
-        ingresos: totalIngresos,
+        ingresos: totalPagosPeriodo + ingresosMov,
         salidas: totalSalidas,
       }
     } catch (error) {
@@ -1486,3 +1524,18 @@ export const cajasService = {
   },
 }
 
+
+/**
+ * Retorna el rango ISO del día local (medianoche inicio → medianoche fin).
+ * Útil para filtrar registros de un día específico en la base de datos.
+ */
+export function getLocalDayRangeISO(date: Date): { startISO: string; endISO: string } {
+  const start = new Date(date)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(date)
+  end.setHours(23, 59, 59, 999)
+  return {
+    startISO: start.toISOString(),
+    endISO: end.toISOString(),
+  }
+}

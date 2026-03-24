@@ -3,13 +3,31 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, DollarSign, TrendingUp, TrendingDown, Lock, Unlock, Plus, Minus, Printer, RefreshCw, Building2 } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
 import { Modal } from '@/components/Modal'
 import { Select } from '@/components/Select'
-import { cajasService } from '@/lib/services/cajas'
+import { cajasService, getLocalDayRangeISO } from '@/lib/services/cajas'
 import { perfilesService } from '@/lib/services/perfiles'
+import { authService } from '@/lib/services/auth'
 import type { Caja, MovimientoCaja, MovimientoCajaResumen, ResumenTotalesCaja, Sucursal } from '@/types'
+
+const CAJA_TOKEN_COOKIE = 'sb-caja-token'
+
+async function fetchDatosDelDia(params: URLSearchParams): Promise<Response> {
+  const session = await authService.getSession()
+  const headers: HeadersInit = { credentials: 'include' }
+  if (session?.access_token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${session.access_token}`
+    // Cookie de respaldo por si el header no llega (proxies, CORS, etc.)
+    if (typeof document !== 'undefined') {
+      document.cookie = `${CAJA_TOKEN_COOKIE}=${encodeURIComponent(session.access_token)}; path=/; max-age=120; SameSite=Lax`
+    }
+  }
+  return fetch(`/api/caja/datos-del-dia?${params.toString()}`, headers)
+}
+import { formatCurrency } from '@/lib/utils/currency'
 
 export default function CajaPage() {
   const router = useRouter()
@@ -61,30 +79,39 @@ export default function CajaPage() {
       setCaja(cajaActual)
 
       if (cajaActual) {
-        // Usar siempre la sucursal de la caja para cargar pagos/ingresos (así se reflejan correctamente)
         const sucursalParaPagos = cajaActual.sucursal_id || sucursalId || undefined
+        const hoyLocal = new Date()
+        const fechaHoy = `${hoyLocal.getFullYear()}-${String(hoyLocal.getMonth() + 1).padStart(2, '0')}-${String(hoyLocal.getDate()).padStart(2, '0')}`
+        const { startISO, endISO } = getLocalDayRangeISO(hoyLocal)
 
-        // Cargar movimientos
-        const movimientosCaja = await cajasService.getMovimientosCaja(cajaActual.id)
-        const pagosMovimientos = await cajasService.getPagosDelDiaMovimientos(
-          cajaActual.id,
-          cajaActual.fecha,
-          sucursalParaPagos
-        )
+        // Usar API en servidor (admin) para que pagos e ingresos no queden vacíos por RLS
+        const params = new URLSearchParams({ fecha: fechaHoy, cajaId: cajaActual.id })
+        params.set('desde', startISO)
+        params.set('hasta', endISO)
+        if (sucursalParaPagos) params.set('sucursalId', sucursalParaPagos)
+        let res = await fetchDatosDelDia(params)
+        if (res.status === 401) {
+          res = await fetchDatosDelDia(params)
+        }
+        const data = res.ok ? await res.json().catch(() => ({})) : {}
+
+        const movimientosCaja = (data.movimientosCaja || []) as MovimientoCaja[]
+        const pagosMovimientos = (data.pagosMovimientos || []) as MovimientoCaja[]
+        // API usa movimientos_caja como fuente principal; ingresosPagos solo fallback (pagos viejos sin movimiento)
+        const totalIngresos = Number(data.totalIngresosDia)
+        const ingresosPagos = Number(data.ingresosPagos) || 0
+
         const movimientosData = [...movimientosCaja, ...pagosMovimientos].sort((a, b) => {
-          const fechaA = new Date(a.fecha_hora).getTime()
-          const fechaB = new Date(b.fecha_hora).getTime()
+          const fechaA = new Date((a as any).fecha_hora).getTime()
+          const fechaB = new Date((b as any).fecha_hora).getTime()
           return fechaA - fechaB
         })
         setMovimientos(movimientosData)
 
-        // Calcular ingresos y salidas del mismo día que la caja (misma sucursal)
-        const ingresosPagos = await cajasService.getIngresosDelDia(cajaActual.fecha, sucursalParaPagos)
-        const ingresosMovimientos = movimientosCaja
-          .filter((m) => m.tipo === 'Entrada')
+        const salidas = movimientosCaja
+          .filter((m) => String(m.tipo || '').toLowerCase() === 'salida')
           .reduce((sum, m) => sum + (m.monto || 0), 0)
-        const salidas = await cajasService.getSalidasDelDia(cajaActual.id)
-        setIngresosDia(ingresosPagos + ingresosMovimientos)
+        setIngresosDia(Number.isFinite(totalIngresos) ? totalIngresos : ingresosPagos + movimientosCaja.filter((m) => String(m.tipo || '').toLowerCase() === 'entrada').reduce((sum, m) => sum + (m.monto || 0), 0))
         setSalidasDia(salidas)
       } else {
         setMovimientos([])
@@ -176,14 +203,14 @@ export default function CajaPage() {
       if (esAdmin && sucursalSeleccionada) {
         const sucursalActual = await perfilesService.getSucursalActual()
         if (sucursalSeleccionada !== sucursalActual) {
-          alert('⚠️ Solo puedes actualizar el fondo de caja de tu propia sucursal. Cambia a tu sucursal para realizar esta acción.')
+          toast.warning('Solo puedes actualizar el fondo de caja de tu propia sucursal. Cambia a tu sucursal para realizar esta acción.')
           return
         }
       }
 
       const monto = parseFloat(montoApertura)
       if (isNaN(monto) || monto < 0) {
-        alert('Debe ingresar un monto válido')
+        toast.warning('Debe ingresar un monto válido')
         return
       }
 
@@ -198,11 +225,11 @@ export default function CajaPage() {
       setObservacionesApertura('')
       setIsAbriendoCaja(false)
       setIsAperturaModalOpen(false)
-      alert('✅ Fondo de caja actualizado exitosamente')
+      toast.success('Fondo de caja actualizado exitosamente')
       loadCaja()
     } catch (error: any) {
       console.error('Error abriendo caja:', error)
-      alert(`Error: ${error.message || 'Error al abrir la caja'}`)
+      toast.error(`Error: ${error.message || 'Error al abrir la caja'}`)
       setIsAbriendoCaja(false)
     }
   }
@@ -213,24 +240,24 @@ export default function CajaPage() {
       if (esAdmin && sucursalSeleccionada) {
         const sucursalActual = await perfilesService.getSucursalActual()
         if (sucursalSeleccionada !== sucursalActual) {
-          alert('⚠️ Solo puedes cerrar la caja de tu propia sucursal. Cambia a tu sucursal para realizar esta acción.')
+          toast.warning('Solo puedes cerrar la caja de tu propia sucursal. Cambia a tu sucursal para realizar esta acción.')
           return
         }
       }
 
       const monto = parseFloat(montoCierreReal)
       if (isNaN(monto) || monto < 0) {
-        alert('Debe ingresar un monto válido')
+        toast.warning('Debe ingresar un monto válido')
         return
       }
 
       if (!caja) {
-        alert('No hay caja abierta para cerrar')
+        toast.warning('No hay caja abierta para cerrar')
         return
       }
 
       const diferencia = monto - montoEsperado
-      const confirmacion = `¿Confirmar cierre de caja?\n\nMonto esperado: $${montoEsperado.toLocaleString('es-DO', { minimumFractionDigits: 2 })}\nMonto real: $${monto.toLocaleString('es-DO', { minimumFractionDigits: 2 })}\nDiferencia: $${diferencia >= 0 ? '+' : ''}${diferencia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
+      const confirmacion = `¿Confirmar cierre de caja?\n\nMonto esperado: $${formatCurrency(montoEsperado)}\nMonto real: $${formatCurrency(monto)}\nDiferencia: $${diferencia >= 0 ? '+' : ''}${formatCurrency(diferencia)}`
 
       if (!confirm(confirmacion)) {
         return
@@ -249,17 +276,17 @@ export default function CajaPage() {
       setIsCerrarModalOpen(false)
       
       if (cajaCerrada.diferencia && cajaCerrada.diferencia < 0) {
-        alert(`⚠️ Caja cerrada. Hay un FALTANTE de $${Math.abs(cajaCerrada.diferencia).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`)
+        toast.warning(`Caja cerrada. Hay un FALTANTE de $${formatCurrency(Math.abs(cajaCerrada.diferencia))}`)
       } else if (cajaCerrada.diferencia && cajaCerrada.diferencia > 0) {
-        alert(`✅ Caja cerrada. Hay un SOBRANTE de $${cajaCerrada.diferencia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`)
+        toast.success(`Caja cerrada. Hay un SOBRANTE de $${formatCurrency(cajaCerrada.diferencia)}`)
       } else {
-        alert('✅ Caja cerrada correctamente. No hay diferencia.')
+        toast.success('Caja cerrada correctamente. No hay diferencia.')
       }
       
       loadCaja()
     } catch (error: any) {
       console.error('Error cerrando caja:', error)
-      alert(`Error: ${error.message || 'Error al cerrar la caja'}`)
+      toast.error(`Error: ${error.message || 'Error al cerrar la caja'}`)
       setIsCerrandoCaja(false)
     }
   }
@@ -271,24 +298,24 @@ export default function CajaPage() {
       if (esAdmin && sucursalSeleccionada) {
         const sucursalActual = await perfilesService.getSucursalActual()
         if (sucursalSeleccionada !== sucursalActual) {
-          alert('⚠️ Solo puedes registrar movimientos en la caja de tu propia sucursal. Cambia a tu sucursal para realizar esta acción.')
+          toast.warning('Solo puedes registrar movimientos en la caja de tu propia sucursal. Cambia a tu sucursal para realizar esta acción.')
           return
         }
       }
 
       const monto = parseFloat(montoMovimiento)
       if (isNaN(monto) || monto <= 0) {
-        alert('Debe ingresar un monto válido mayor a 0')
+        toast.warning('Debe ingresar un monto válido mayor a 0')
         return
       }
 
       if (!conceptoMovimiento.trim()) {
-        alert('Debe ingresar un concepto')
+        toast.warning('Debe ingresar un concepto')
         return
       }
 
       if (!caja) {
-        alert('No hay caja abierta')
+        toast.warning('No hay caja abierta')
         return
       }
 
@@ -311,11 +338,11 @@ export default function CajaPage() {
       setConceptoMovimiento('')
       setObservacionesMovimiento('')
       setIsMovimientoModalOpen(false)
-      alert('✅ Movimiento registrado exitosamente')
+      toast.success('Movimiento registrado exitosamente')
       loadCaja()
     } catch (error: any) {
       console.error('Error registrando movimiento:', error)
-      alert(`Error: ${error.message || 'Error al registrar el movimiento'}`)
+      toast.error(`Error: ${error.message || 'Error al registrar el movimiento'}`)
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId)
@@ -336,7 +363,7 @@ export default function CajaPage() {
       setHistorialTotales(data.totales)
     } catch (error: any) {
       console.error('Error cargando historial de movimientos:', error)
-      alert(`Error: ${error.message || 'No se pudieron cargar los movimientos'}`)
+      toast.error(`Error: ${error.message || 'No se pudieron cargar los movimientos'}`)
     } finally {
       setHistorialLoading(false)
     }
@@ -344,14 +371,14 @@ export default function CajaPage() {
 
   function handleImprimirReporte() {
     if (!caja || caja.estado !== 'Cerrada') {
-      alert('Solo se puede imprimir el reporte de una caja cerrada')
+      toast.warning('Solo se puede imprimir el reporte de una caja cerrada')
       return
     }
 
     // Abrir ventana de impresión
     const ventanaImpresion = window.open('', '_blank')
     if (!ventanaImpresion) {
-      alert('Por favor, permite ventanas emergentes para imprimir')
+      toast.warning('Por favor, permite ventanas emergentes para imprimir')
       return
     }
 
@@ -377,29 +404,29 @@ export default function CajaPage() {
         <div class="line"></div>
         <div class="row">
           <span>Monto de Apertura:</span>
-          <span>$${caja.monto_apertura.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+          <span>$${formatCurrency(caja.monto_apertura)}</span>
         </div>
         <div class="row">
           <span>Ingresos del Día:</span>
-          <span>$${ingresosDia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+          <span>$${formatCurrency(ingresosDia)}</span>
         </div>
         <div class="row">
           <span>Salidas del Día:</span>
-          <span>$${salidasDia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+          <span>$${formatCurrency(salidasDia)}</span>
         </div>
         <div class="line"></div>
         <div class="row total">
           <span>Monto Esperado:</span>
-          <span>$${montoEsperado.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+          <span>$${formatCurrency(montoEsperado)}</span>
         </div>
         <div class="row">
           <span>Monto Real:</span>
-          <span>$${caja.monto_cierre_real?.toLocaleString('es-DO', { minimumFractionDigits: 2 }) || '0.00'}</span>
+          <span>$${caja.monto_cierre_real != null ? formatCurrency(caja.monto_cierre_real) : '0.00'}</span>
         </div>
         <div class="line"></div>
         <div class="row total">
           <span>Diferencia:</span>
-          <span>$${caja.diferencia && caja.diferencia >= 0 ? '+' : ''}${caja.diferencia?.toLocaleString('es-DO', { minimumFractionDigits: 2 }) || '0.00'}</span>
+          <span>$${caja.diferencia != null ? (caja.diferencia >= 0 ? '+' : '') + formatCurrency(caja.diferencia) : '0.00'}</span>
         </div>
         ${caja.observaciones ? `<p><strong>Observaciones:</strong> ${caja.observaciones}</p>` : ''}
       </body>
@@ -451,9 +478,9 @@ export default function CajaPage() {
         
         {/* Selector de sucursal para admins */}
         {esAdmin && sucursales.length > 0 && (
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-4">
+          <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl mb-4">
             <div className="flex items-center gap-4">
-              <Building2 className="w-5 h-5 text-blue-600" />
+              <Building2 className="w-5 h-5 text-indigo-600" />
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Ver Caja de Sucursal:
@@ -476,15 +503,31 @@ export default function CajaPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Cargando información de caja...</p>
+        <div className="space-y-4 animate-pulse">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-gray-200" />
+              <div className="space-y-2">
+                <div className="h-5 w-40 bg-gray-200 rounded" />
+                <div className="h-3 w-56 bg-gray-100 rounded" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-gray-50 rounded-xl p-4">
+                  <div className="h-3 w-20 bg-gray-200 rounded mb-2" />
+                  <div className="h-6 w-28 bg-gray-200 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       ) : (
         // Caja abierta o cerrada - Mostrar panel de cuadre
         <div className="space-y-6">
           {/* Estado de la caja */}
           {caja && (
-            <div className="rounded-lg shadow p-6 bg-green-50 border-l-4 border-green-500">
+            <div className="rounded-2xl border border-green-200 p-6 bg-green-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <Unlock className="w-8 h-8 text-green-600 mr-4" />
@@ -539,46 +582,46 @@ export default function CajaPage() {
           {caja && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* Monto de Apertura */}
-              <div className="bg-white rounded-lg shadow p-4">
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Apertura</span>
                   <DollarSign className="w-5 h-5 text-blue-500" />
                 </div>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${caja.monto_apertura.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                  ${formatCurrency(caja.monto_apertura)}
                 </p>
               </div>
 
               {/* Ingresos del día */}
-              <div className="bg-white rounded-lg shadow p-4">
+              <div className="bg-white rounded-xl border border-green-100 shadow-sm p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Ingresos</span>
                   <TrendingUp className="w-5 h-5 text-green-500" />
                 </div>
                 <p className="text-2xl font-bold text-green-600">
-                  +${ingresosDia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                  +${formatCurrency(ingresosDia)}
                 </p>
               </div>
 
               {/* Salidas del día */}
-              <div className="bg-white rounded-lg shadow p-4">
+              <div className="bg-white rounded-xl border border-red-100 shadow-sm p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Salidas</span>
                   <TrendingDown className="w-5 h-5 text-red-500" />
                 </div>
                 <p className="text-2xl font-bold text-red-600">
-                  -${salidasDia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                  -${formatCurrency(salidasDia)}
                 </p>
               </div>
 
               {/* Monto Esperado */}
-              <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg shadow p-4 text-white">
+              <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow p-4 text-white">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm opacity-90">Esperado en Caja</span>
                   <DollarSign className="w-5 h-5" />
                 </div>
                 <p className="text-2xl font-bold">
-                  ${montoEsperado.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                  ${formatCurrency(montoEsperado)}
                 </p>
               </div>
             </div>
@@ -586,26 +629,26 @@ export default function CajaPage() {
 
           {/* Caja cerrada - Mostrar resumen final */}
           {caja && caja.estado === 'Cerrada' && caja.monto_cierre_real && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen de Cierre</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Monto Esperado</p>
                   <p className="text-xl font-bold text-gray-900">
-                    ${montoEsperado.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                    ${formatCurrency(montoEsperado)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Monto Real</p>
                   <p className="text-xl font-bold text-gray-900">
-                    ${caja.monto_cierre_real.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                    ${formatCurrency(caja.monto_cierre_real)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Diferencia</p>
                   <p className={`text-xl font-bold ${caja.diferencia && caja.diferencia < 0 ? 'text-red-600' : caja.diferencia && caja.diferencia > 0 ? 'text-green-600' : 'text-gray-900'}`}>
                     {caja.diferencia && caja.diferencia >= 0 ? '+' : ''}
-                    ${caja.diferencia?.toLocaleString('es-DO', { minimumFractionDigits: 2 }) || '0.00'}
+                    ${caja.diferencia != null ? formatCurrency(caja.diferencia) : '0.00'}
                     {caja.diferencia && caja.diferencia < 0 && ' (FALTANTE)'}
                     {caja.diferencia && caja.diferencia > 0 && ' (SOBRANTE)'}
                   </p>
@@ -616,7 +659,7 @@ export default function CajaPage() {
 
           {/* Botón para registrar movimiento (solo si está abierta y puede editar) */}
           {caja && caja.estado === 'Abierta' && puedeEditar && (
-            <div className="bg-white rounded-lg shadow p-4">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-900">Registrar Movimiento</h3>
                 <Button
@@ -635,8 +678,8 @@ export default function CajaPage() {
           
           {/* Mensaje informativo si el admin está viendo otra sucursal */}
           {esAdmin && !puedeEditar && (
-            <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-md">
-              <p className="text-sm text-yellow-700">
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+              <p className="text-sm text-amber-700">
                 <strong>Modo de Visualización:</strong> Estás viendo la caja de otra sucursal. Solo puedes consultar información. Para realizar acciones (actualizar fondo, cerrar caja, registrar movimientos), cambia a tu sucursal en el selector arriba.
               </p>
             </div>
@@ -644,23 +687,23 @@ export default function CajaPage() {
 
           {/* Lista de movimientos */}
           {movimientos.length > 0 && (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
                 <h3 className="text-lg font-semibold text-gray-900">Movimientos del Día</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-gray-100">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hora</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Concepto</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Observaciones</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Concepto</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observaciones</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-100">
                     {movimientos.map((movimiento) => (
                       <tr key={movimiento.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -692,7 +735,7 @@ export default function CajaPage() {
                           movimiento.tipo === 'Entrada' ? 'text-green-600' : 'text-red-600'
                         }`}>
                           {movimiento.tipo === 'Entrada' ? '+' : '-'}
-                          ${movimiento.monto.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                          ${formatCurrency(movimiento.monto)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {movimiento.observaciones || '-'}
@@ -718,11 +761,11 @@ export default function CajaPage() {
         title="Actualizar Fondo de Caja"
       >
         <div className="space-y-4">
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
-            <p className="text-sm text-blue-700">
+          <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl">
+            <p className="text-sm text-indigo-700">
               Actualiza el monto inicial del fondo de caja. Este será el punto de partida para calcular el cuadre diario.
             </p>
-            <p className="text-xs text-blue-600 mt-2">
+            <p className="text-xs text-indigo-600 mt-2">
               Nota: La caja se crea automáticamente y está siempre disponible para registrar movimientos.
             </p>
           </div>
@@ -743,7 +786,7 @@ export default function CajaPage() {
               Observaciones (opcional)
             </label>
             <textarea
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               rows={3}
               value={observacionesApertura}
               onChange={(e) => setObservacionesApertura(e.target.value)}
@@ -783,32 +826,32 @@ export default function CajaPage() {
       >
         {caja && (
           <div className="space-y-4">
-            <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-md">
-              <p className="text-sm text-yellow-700 mb-2">
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+              <p className="text-sm text-amber-700 mb-2">
                 <strong>Paso 1:</strong> Cuenta físicamente el dinero en la caja.
               </p>
-              <p className="text-sm text-yellow-700">
+              <p className="text-sm text-amber-700">
                 <strong>Paso 2:</strong> Ingresa el monto real contado.
               </p>
             </div>
 
-            <div className="bg-gray-50 p-4 rounded-md space-y-2">
+            <div className="bg-gray-50 p-4 rounded-xl space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Monto de Apertura:</span>
-                <span className="font-medium">${caja.monto_apertura.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+                <span className="font-medium">${formatCurrency(caja.monto_apertura)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Ingresos del día:</span>
-                <span className="font-medium text-green-600">+${ingresosDia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+                <span className="font-medium text-green-600">+${formatCurrency(ingresosDia)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Salidas del día:</span>
-                <span className="font-medium text-red-600">-${salidasDia.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+                <span className="font-medium text-red-600">-${formatCurrency(salidasDia)}</span>
               </div>
               <div className="border-t border-gray-300 pt-2 flex justify-between">
                 <span className="text-sm font-semibold text-gray-900">Monto Esperado:</span>
                 <span className="text-lg font-bold text-primary-600">
-                  ${montoEsperado.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                  ${formatCurrency(montoEsperado)}
                 </span>
               </div>
             </div>
@@ -825,7 +868,7 @@ export default function CajaPage() {
             />
 
             {montoCierreReal && !isNaN(parseFloat(montoCierreReal)) && (
-              <div className="bg-blue-50 p-4 rounded-md">
+              <div className="bg-blue-50 p-4 rounded-xl">
                 <p className="text-sm font-semibold text-blue-900 mb-1">Diferencia Calculada:</p>
                 <p className={`text-xl font-bold ${
                   parseFloat(montoCierreReal) - montoEsperado < 0 ? 'text-red-600' : 
@@ -833,7 +876,7 @@ export default function CajaPage() {
                   'text-gray-900'
                 }`}>
                   {parseFloat(montoCierreReal) - montoEsperado >= 0 ? '+' : ''}
-                  ${(parseFloat(montoCierreReal) - montoEsperado).toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                  ${formatCurrency(parseFloat(montoCierreReal) - montoEsperado)}
                   {parseFloat(montoCierreReal) - montoEsperado < 0 && ' (FALTANTE)'}
                   {parseFloat(montoCierreReal) - montoEsperado > 0 && ' (SOBRANTE)'}
                 </p>
@@ -845,7 +888,7 @@ export default function CajaPage() {
                 Observaciones (opcional)
               </label>
               <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 rows={3}
                 value={observacionesCierre}
                 onChange={(e) => setObservacionesCierre(e.target.value)}
@@ -886,11 +929,11 @@ export default function CajaPage() {
         title="Registrar Movimiento de Caja"
       >
         <div className="space-y-4">
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
-            <p className="text-sm text-blue-700">
+          <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl">
+            <p className="text-sm text-indigo-700">
               Registra entradas o salidas de efectivo que no están relacionadas con pagos de clientes.
             </p>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="text-sm text-indigo-700 mt-1">
               Ejemplos: Pago de servicios, compras, aportes de capital, etc.
             </p>
           </div>
@@ -900,7 +943,7 @@ export default function CajaPage() {
               Tipo de Movimiento <span className="text-red-500">*</span>
             </label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               value={tipoMovimiento}
               onChange={(e) => setTipoMovimiento(e.target.value as 'Entrada' | 'Salida')}
             >
@@ -934,7 +977,7 @@ export default function CajaPage() {
               Observaciones (opcional)
             </label>
             <textarea
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               rows={3}
               value={observacionesMovimiento}
               onChange={(e) => setObservacionesMovimiento(e.target.value)}
@@ -1010,16 +1053,16 @@ export default function CajaPage() {
                 { label: 'Mes', data: historialTotales.mes },
                 { label: 'Año', data: historialTotales.anio },
               ] as const).map((item) => (
-                <div key={item.label} className="bg-gray-50 rounded-md p-3 border">
+                <div key={item.label} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                   <p className="text-xs text-gray-500 uppercase">{item.label}</p>
                   <p className="text-sm text-green-700">
-                    Ingresos: ${item.data.ingresos.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                    Ingresos: ${formatCurrency(item.data.ingresos)}
                   </p>
                   <p className="text-sm text-red-700">
-                    Salidas: ${item.data.salidas.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                    Salidas: ${formatCurrency(item.data.salidas)}
                   </p>
                   <p className="text-sm font-semibold text-gray-900">
-                    Neto: ${item.data.neto.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                    Neto: ${formatCurrency(item.data.neto)}
                   </p>
                 </div>
               ))}
@@ -1058,27 +1101,27 @@ export default function CajaPage() {
                       </td>
                       <td className="px-3 py-2">{mov.tipo}</td>
                       <td className="px-3 py-2">
-                        {Number(mov.monto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                        {formatCurrency(Number(mov.monto || 0))}
                       </td>
                       <td className="px-3 py-2">{mov.concepto}</td>
                       <td className="px-3 py-2">
                         {mov.ingresos_dia !== undefined
-                          ? Number(mov.ingresos_dia).toLocaleString('es-DO', { minimumFractionDigits: 2 })
+                          ? formatCurrency(Number(mov.ingresos_dia))
                           : '-'}
                       </td>
                       <td className="px-3 py-2">
                         {mov.ingresos_semana !== undefined
-                          ? Number(mov.ingresos_semana).toLocaleString('es-DO', { minimumFractionDigits: 2 })
+                          ? formatCurrency(Number(mov.ingresos_semana))
                           : '-'}
                       </td>
                       <td className="px-3 py-2">
                         {mov.ingresos_mes !== undefined
-                          ? Number(mov.ingresos_mes).toLocaleString('es-DO', { minimumFractionDigits: 2 })
+                          ? formatCurrency(Number(mov.ingresos_mes))
                           : '-'}
                       </td>
                       <td className="px-3 py-2">
                         {mov.ingresos_anio !== undefined
-                          ? Number(mov.ingresos_anio).toLocaleString('es-DO', { minimumFractionDigits: 2 })
+                          ? formatCurrency(Number(mov.ingresos_anio))
                           : '-'}
                       </td>
                       <td className="px-3 py-2">{mov.observaciones || '-'}</td>

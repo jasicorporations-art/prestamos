@@ -1,14 +1,26 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { Download, Upload, AlertTriangle, Shield, Cloud, RefreshCw } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Download, Upload, AlertTriangle, Shield, Cloud, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/Button'
 import Link from 'next/link'
 import { subscriptionService } from '@/lib/services/subscription'
+import { getSupabaseClient } from '@/lib/supabase'
 
 type SavedBackup = { id: string; tipo: string; created_at: string }
 
 const BRONCE_BACKUP_INTERVAL_DAYS = 30
+
+/** Headers con el token de sesión para que las API de backup autentiquen (sesión en localStorage). */
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const supabase = getSupabaseClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (session?.access_token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${session.access_token}`
+  }
+  return headers
+}
 
 export default function BackupPage() {
   const [exporting, setExporting] = useState(false)
@@ -20,29 +32,64 @@ export default function BackupPage() {
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const [restoreSuccess, setRestoreSuccess] = useState(false)
   const [savedBackups, setSavedBackups] = useState<SavedBackup[]>([])
+  const [listError, setListError] = useState<string | null>(null)
   const [loadingList, setLoadingList] = useState(true)
   const [exportMessage, setExportMessage] = useState<{ type: 'success' | 'warning'; text: string } | null>(null)
   const [canExport, setCanExport] = useState(true)
   const [nextBackupAvailable, setNextBackupAvailable] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const latestRequestIdRef = useRef(0)
 
-  const loadSavedBackups = async () => {
+  const sortByCreatedAtDesc = (a: SavedBackup, b: SavedBackup) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+
+  const loadSavedBackups = useCallback(async () => {
+    const requestId = ++latestRequestIdRef.current
     setLoadingList(true)
+    setListError(null)
+    const timestamp = Date.now()
     try {
-      const res = await fetch('/api/backup/list', { credentials: 'include' })
+      const headers = await getAuthHeaders()
+      const url = `/api/backup/list?_=${timestamp}`
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers,
+        cache: 'no-store',
+      })
       const data = await res.json().catch(() => ({}))
-      if (res.ok && Array.isArray(data.backups)) setSavedBackups(data.backups)
-      else setSavedBackups([])
-    } catch {
-      setSavedBackups([])
+      if (latestRequestIdRef.current !== requestId) {
+        // Respuesta obsoleta: ignorar
+        return
+      }
+      if (res.ok) {
+        const list = Array.isArray(data.backups) ? (data.backups as SavedBackup[]) : []
+        const sorted = [...list].sort(sortByCreatedAtDesc)
+        setSavedBackups(sorted)
+        setListError(typeof data.error === 'string' ? data.error : null)
+      } else {
+        // Mantener la lista previa si ya había datos y solo mostrar el error
+        setListError(data.error || res.statusText || 'Error al cargar la lista')
+      }
+    } catch (e) {
+      if (latestRequestIdRef.current !== requestId) return
+      setListError(e instanceof Error ? e.message : 'Error al cargar la lista')
     } finally {
-      setLoadingList(false)
+      if (latestRequestIdRef.current === requestId) {
+        setLoadingList(false)
+      }
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadSavedBackups()
-  }, [])
+  }, [loadSavedBackups])
+
+  useEffect(() => {
+    const onFocus = () => loadSavedBackups()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [loadSavedBackups])
 
   useEffect(() => {
     async function checkExportLimit() {
@@ -79,7 +126,8 @@ export default function BackupPage() {
     setRestoreError(null)
     setExportMessage(null)
     try {
-      const res = await fetch('/api/backup/export', { credentials: 'include' })
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/backup/export', { credentials: 'include', headers })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || res.statusText)
@@ -87,6 +135,7 @@ export default function BackupPage() {
       const data = await res.json()
       const backup = data
       const savedToCloud = data.savedToCloud === true
+      const cloudBackupId = typeof data.cloudBackupId === 'string' ? data.cloudBackupId : null
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -99,6 +148,23 @@ export default function BackupPage() {
           type: 'success',
           text: 'Backup descargado y guardado en la nube. Ya aparece abajo para restaurar desde cualquier dispositivo.',
         })
+        if (cloudBackupId) {
+          const createdAt = backup.exportDate || new Date().toISOString()
+          const newEntry: SavedBackup = { id: cloudBackupId, tipo: 'manual', created_at: createdAt }
+          setSavedBackups((prev) => {
+            const merged = [newEntry, ...prev]
+            const seen = new Set<string>()
+            const deduped = merged.filter((b) => {
+              if (seen.has(b.id)) return false
+              seen.add(b.id)
+              return true
+            })
+            return deduped.sort(sortByCreatedAtDesc)
+          })
+        } else {
+          // Si por alguna razón no vino el ID, refrescar desde el servidor
+          loadSavedBackups()
+        }
       } else {
         const detalle = data.saveError ? ` Detalle: ${data.saveError}` : ''
         setExportMessage({
@@ -106,7 +172,6 @@ export default function BackupPage() {
           text: `Backup descargado en este equipo. No se pudo guardar en la nube. Ejecuta en Supabase el script crear-tabla-tenant-backups.sql.${detalle}`,
         })
       }
-      setTimeout(() => loadSavedBackups(), 600)
     } catch (e) {
       setRestoreError(e instanceof Error ? e.message : 'Error al exportar')
     } finally {
@@ -114,11 +179,37 @@ export default function BackupPage() {
     }
   }
 
+  const handleDeleteBackup = async (id: string) => {
+    if (!confirm('¿Eliminar este backup de la nube? No se puede deshacer.')) return
+    setDeletingId(id)
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`/api/backup/${id}`, { method: 'DELETE', credentials: 'include', headers })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || res.statusText)
+      setSavedBackups((prev) => prev.filter((b) => b.id !== id))
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : 'Error al eliminar')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const handleDownloadSaved = async (id: string) => {
     try {
-      const res = await fetch(`/api/backup/${id}`, { credentials: 'include' })
-      if (!res.ok) throw new Error('No se pudo descargar')
-      const backup = await res.json()
+      const headers = await getAuthHeaders()
+      const res = await fetch(`/api/backup/${id}?_=${Date.now()}`, { credentials: 'include', headers, cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (res.status === 404) {
+          setSavedBackups((prev) => prev.filter((b) => b.id !== id))
+          setRestoreError('Backup no encontrado o ya fue eliminado. Lista actualizada.')
+        } else {
+          setRestoreError((data.error as string) || 'No se pudo descargar')
+        }
+        return
+      }
+      const backup = data
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -148,7 +239,10 @@ export default function BackupPage() {
     reader.onload = () => {
       try {
         const backup = JSON.parse(reader.result as string)
-        if (!backup?.tables) throw new Error('Archivo no es un backup válido')
+        const hasTables =
+          backup?.tables != null ||
+          (backup?.backup_data != null && typeof backup.backup_data === 'object' && backup.backup_data.tables != null)
+        if (!hasTables) throw new Error('Archivo no es un backup válido')
         setBackupFile({ backup, fileName: file.name })
         setModalOpen(true)
         setCompanyNameConfirm('')
@@ -173,14 +267,18 @@ export default function BackupPage() {
       if (restoreFromId) body.backupId = restoreFromId
       else if (backupFile) body.backup = backupFile.backup
 
+      const authHeaders = await getAuthHeaders()
       const res = await fetch('/api/backup/restore', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         credentials: 'include',
         body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (res.status === 404 && restoreFromId) {
+          setSavedBackups((prev) => prev.filter((b) => b.id !== restoreFromId))
+        }
         throw new Error(data.error || 'Error al restaurar')
       }
       setRestoreSuccess(true)
@@ -193,13 +291,13 @@ export default function BackupPage() {
         a.click()
         URL.revokeObjectURL(url)
       }
+      loadSavedBackups()
       setTimeout(() => {
         setModalOpen(false)
         setBackupFile(null)
         setRestoreFromId(null)
         setCompanyNameConfirm('')
         setRestoreSuccess(false)
-        loadSavedBackups()
       }, 2500)
     } catch (e) {
       setRestoreError(e instanceof Error ? e.message : 'Error al restaurar')
@@ -266,10 +364,27 @@ export default function BackupPage() {
             </Button>
           </div>
           <p className="text-sm text-gray-600 mb-4">
-            Restaura o descarga desde cualquier lugar. Solo ves los backups de esta aplicación y tu empresa.
+            Restaura o descarga desde cualquier lugar. Solo ves los backups de tu empresa (los más recientes primero).
           </p>
-          {loadingList ? (
-            <p className="text-sm text-gray-500">Cargando lista…</p>
+          {listError && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              {listError}
+            </p>
+          )}
+          {(loadingList && savedBackups.length === 0) ? (
+            <div className="space-y-2 animate-pulse">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 py-3 border-b border-gray-100">
+                  <div className="h-4 w-40 bg-gray-200 rounded" />
+                  <div className="h-5 w-24 bg-gray-100 rounded-full" />
+                  <div className="ml-auto flex gap-2">
+                    <div className="h-8 w-20 bg-gray-100 rounded-lg" />
+                    <div className="h-8 w-20 bg-gray-100 rounded-lg" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : savedBackups.length === 0 ? (
             <p className="text-sm text-gray-500">Aún no hay backups guardados. Haz uno con &quot;Descargar y guardar en la nube&quot;.</p>
           ) : (
@@ -282,7 +397,7 @@ export default function BackupPage() {
                     <th className="px-4 py-2 text-right font-medium text-gray-700">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {savedBackups.map((b) => (
                     <tr key={b.id}>
                       <td className="px-4 py-2 text-gray-700">
@@ -299,6 +414,15 @@ export default function BackupPage() {
                         </Button>
                         <Button variant="secondary" className="text-xs py-1" onClick={() => handleRestoreSaved(b.id)}>
                           Restaurar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="text-xs py-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteBackup(b.id)}
+                          disabled={deletingId === b.id}
+                          title="Eliminar este backup de la nube"
+                        >
+                          {deletingId === b.id ? 'Eliminando…' : <><Trash2 className="w-3.5 h-3.5 inline mr-0.5" /> Eliminar</>}
                         </Button>
                       </td>
                     </tr>

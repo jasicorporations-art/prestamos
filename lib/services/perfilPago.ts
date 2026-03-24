@@ -135,3 +135,66 @@ export async function getPerfilPagoCliente(clienteId: string): Promise<PerfilPag
     detallePorVenta,
   }
 }
+
+/**
+ * Calcula el perfil de pago directamente a partir de datos ya cargados.
+ * Útil para endpoints que ya tienen los datos en memoria (evita re-queries).
+ */
+export function calcularPerfilPagoFromData(
+  ventas: any[],
+  cuotas: Array<{ venta_id: string; numero_cuota: number; fecha_pago: string }>,
+  pagos: Array<{ venta_id: string; numero_cuota?: number | null; fecha_pago?: string; fecha_hora?: string }>
+): PerfilPagoResult {
+  if (!ventas || ventas.length === 0) {
+    return { estrellas: 5, vecesPagadoConMora: 0, totalPagadoEnRecargos: 0, esAltoRiesgo: false }
+  }
+
+  const cuotasPorVenta = new Map<string, Array<{ numero_cuota: number; fecha_pago: string }>>()
+  for (const c of cuotas) {
+    if (!cuotasPorVenta.has(c.venta_id)) cuotasPorVenta.set(c.venta_id, [])
+    cuotasPorVenta.get(c.venta_id)!.push({ numero_cuota: c.numero_cuota, fecha_pago: c.fecha_pago })
+  }
+
+  let vecesPagadoConMora = 0
+  let penalizacionTotal = 0
+  const detallePorVenta: PerfilPagoResult['detallePorVenta'] = []
+
+  for (const venta of ventas) {
+    const cuotasVenta = cuotasPorVenta.get(venta.id) || []
+    const pagosVenta = pagos.filter((p) => p.venta_id === venta.id)
+    let vecesMoraVenta = 0
+
+    for (const pago of pagosVenta) {
+      const numeroCuota = pago.numero_cuota
+      if (numeroCuota == null) continue
+      const cuota = cuotasVenta.find((c) => c.numero_cuota === numeroCuota)
+      if (!cuota?.fecha_pago) continue
+
+      const fechaVencimiento = new Date(cuota.fecha_pago)
+      const fechaPagoReal = new Date(pago.fecha_hora || pago.fecha_pago || 0)
+      fechaVencimiento.setHours(0, 0, 0, 0)
+      fechaPagoReal.setHours(0, 0, 0, 0)
+
+      const diasRetraso = Math.ceil(
+        (fechaPagoReal.getTime() - fechaVencimiento.getTime()) / (24 * 60 * 60 * 1000)
+      )
+      if (diasRetraso > DIAS_GRACIA) {
+        vecesPagadoConMora++
+        vecesMoraVenta++
+        penalizacionTotal += penalizacionPorDiasRetraso(diasRetraso)
+      }
+    }
+
+    const moraAbonada = Number(venta.mora_abonada ?? 0)
+    if (vecesMoraVenta > 0 || moraAbonada > 0) {
+      detallePorVenta?.push({ ventaId: venta.id, vecesMora: vecesMoraVenta, moraAbonada })
+    }
+  }
+
+  const totalPagadoEnRecargos = ventas.reduce((sum, v) => sum + Number(v.mora_abonada ?? 0), 0)
+  let estrellas = Math.max(1, Math.min(5, 5 - penalizacionTotal))
+  estrellas = Math.round(estrellas * 2) / 2
+  const esAltoRiesgo = vecesPagadoConMora > 3
+
+  return { estrellas, vecesPagadoConMora, totalPagadoEnRecargos, esAltoRiesgo, detallePorVenta }
+}

@@ -10,8 +10,9 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLanding = pathname === '/landing' || pathname === '/'
   const isPublicAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/recuperar-contrasena' || pathname === '/actualizar-contrasena'
+  const isPortalClientePage = pathname.startsWith('/portal-cliente')
   const isSuperAdminPage = pathname === '/super-admin'
-  const useAppShell = !isLanding && !isPublicAuthPage && !isSuperAdminPage
+  const useAppShell = !isLanding && !isPublicAuthPage && !isSuperAdminPage && !isPortalClientePage
 
   if (useAppShell) {
     return (

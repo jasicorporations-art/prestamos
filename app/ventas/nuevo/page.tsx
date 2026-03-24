@@ -28,7 +28,7 @@ export default function NuevoPrestamoPage() {
         <h1 className="text-3xl font-bold text-gray-900">Nuevo Préstamo</h1>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <VentaForm
           onSuccess={handleSuccess}
           onCancel={handleCancel}

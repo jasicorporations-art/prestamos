@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { PlanType } from '@/lib/config/planes'
 import { usePathname } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   LayoutDashboard,
   Car,
@@ -24,11 +25,13 @@ import {
   Shield,
   Archive,
   Tag,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   X,
   CheckCircle,
   MessageCircle,
+  ClipboardList,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -55,6 +58,15 @@ type NavItemConfig = {
   show: boolean
   badge?: number
 }
+
+const NAV_GROUPS: { key: CategoryKey; title: string; order: number }[] = [
+  { key: 'operaciones', title: 'Operaciones', order: 0 },
+  { key: 'sistema', title: 'Sistema / Configuración', order: 1 },
+  { key: 'admin', title: 'Administración', order: 1.5 },
+  { key: 'finanzas', title: 'Finanzas', order: 2 },
+  { key: 'control', title: 'Control / Alertas', order: 3 },
+  { key: 'superadmin', title: 'Centro de Comando', order: 4 },
+]
 
 export type SidebarProps = {
   collapsed: boolean
@@ -98,7 +110,21 @@ export function Sidebar({
   const pathname = usePathname()
   const showLabels = isMobile ? true : !collapsed
 
-  const allItems: NavItemConfig[] = [
+  const groupHasActiveItem = useCallback(
+    (items: NavItemConfig[]) =>
+      items.some(
+        (item) =>
+          pathname === item.href ||
+          (item.href !== '/dashboard' && pathname.startsWith(item.href)),
+      ),
+    [pathname],
+  )
+
+  /** null = usar regla por defecto (abierto si la ruta activa está en el grupo) */
+  const [openOverride, setOpenOverride] = useState<Partial<Record<CategoryKey, boolean>>>({})
+
+  const allItems: NavItemConfig[] = useMemo(
+    () => [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'sistema', show: true },
     { href: '/motores', label: 'Préstamos', icon: Car, category: 'operaciones', show: true },
     { href: '/clientes', label: 'Clientes', icon: Users, category: 'operaciones', show: true },
@@ -147,108 +173,163 @@ export function Sidebar({
     { href: '/admin/migracion', label: 'Migrar Cartera', icon: Database, category: 'admin', show: isAdmin && planType !== 'BRONCE' },
     { href: '/admin/backup', label: 'Backup', icon: Archive, category: 'admin', show: isAdmin },
     { href: '/super-admin', label: 'Centro de Comando', icon: Shield, category: 'superadmin', show: isSuperAdmin },
-  ]
+    {
+      href: '/super-admin/auditoria',
+      label: 'Auditoría global',
+      icon: ClipboardList,
+      category: 'superadmin',
+      show: isSuperAdmin,
+    },
+    ],
+    [isAdmin, isSuperAdmin, planType, panelAdminBadge],
+  )
 
-  const groups: { key: CategoryKey; title: string; order: number }[] = [
-    { key: 'sistema', title: 'Sistema / Configuración', order: 0 },
-    { key: 'admin', title: 'Administración', order: 0.5 },
-    { key: 'operaciones', title: 'Operaciones', order: 1 },
-    { key: 'finanzas', title: 'Finanzas', order: 2 },
-    { key: 'control', title: 'Control / Alertas', order: 3 },
-    { key: 'superadmin', title: 'Centro de Comando', order: 4 },
-  ]
-
-  const itemsByGroup = groups.map((g) => ({
-    ...g,
-    items: allItems.filter((i) => i.category === g.key && i.show),
-  })).filter((g) => g.items.length > 0)
+  const itemsByGroup = useMemo(
+    () =>
+      NAV_GROUPS.map((g) => ({
+        ...g,
+        items: allItems.filter((i) => i.category === g.key && i.show),
+      })).filter((g) => g.items.length > 0),
+    [allItems],
+  )
 
   const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
+
+  /** En la home `/dashboard` los acordeones empiezan cerrados (evita “Sistema” siempre abierto al iniciar sesión). En el resto de rutas se abre el grupo que contiene la página actual. */
+  const defaultGroupOpen = (items: NavItemConfig[]) => {
+    if (pathname === '/dashboard') return false
+    return groupHasActiveItem(items)
+  }
+
+  const isGroupOpen = (key: CategoryKey, items: NavItemConfig[]) => {
+    if (openOverride[key] !== undefined) return openOverride[key]!
+    return defaultGroupOpen(items)
+  }
+
+  const toggleGroup = (key: CategoryKey, items: NavItemConfig[]) => {
+    setOpenOverride((prev) => {
+      const current = prev[key] !== undefined ? prev[key]! : defaultGroupOpen(items)
+      return { ...prev, [key]: !current }
+    })
+  }
+
+  useEffect(() => {
+    if (pathname === '/dashboard') {
+      setOpenOverride({})
+    }
+  }, [pathname])
+
+  const renderNavLink = (item: NavItemConfig) => {
+    const isActive =
+      pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+    const color = CATEGORY_COLORS[item.category]
+    const glowShadow = `0 0 16px rgba(${color.rgb}, 0.45)`
+    const glowShadowStrong = `0 0 20px rgba(${color.rgb}, 0.6)`
+    const textGlow = `0 0 12px ${color.hex}, 0 0 4px ${color.hex}`
+    const iconGlow = `drop-shadow(0 0 6px ${color.hex})`
+    const colorClass = color.class.replace(/^text-/, '!text-')
+    return (
+      <li key={item.href}>
+        <Link
+          href={item.href}
+          title={!showLabels ? item.label : undefined}
+          onClick={isMobile ? onMobileClose : undefined}
+          className={`
+                        flex items-center gap-3 pl-2 pr-3 py-2.5 rounded-r-lg text-sm font-medium
+                        transition-all duration-200 border-l-[3px]
+                        ${isActive ? 'bg-slate-700/60' : 'hover:bg-slate-700/40'}
+                        ${colorClass}
+                      `}
+          style={{
+            borderLeftColor: color.hex,
+            boxShadow: isActive ? glowShadowStrong : undefined,
+          }}
+          onMouseEnter={(e) => {
+            if (isMobile) return
+            e.currentTarget.style.boxShadow = isActive ? glowShadowStrong : glowShadow
+            const icon = e.currentTarget.querySelector('[data-sidebar-icon]')
+            const text = e.currentTarget.querySelector('[data-sidebar-text]')
+            if (icon) (icon as HTMLElement).style.filter = iconGlow
+            if (text) (text as HTMLElement).style.textShadow = textGlow
+          }}
+          onMouseLeave={(e) => {
+            if (isMobile) return
+            if (!isActive) e.currentTarget.style.boxShadow = ''
+            const icon = e.currentTarget.querySelector('[data-sidebar-icon]')
+            const text = e.currentTarget.querySelector('[data-sidebar-text]')
+            if (icon) (icon as HTMLElement).style.filter = isActive ? iconGlow : ''
+            if (text) (text as HTMLElement).style.textShadow = isActive ? textGlow : ''
+          }}
+        >
+          <item.icon
+            data-sidebar-icon
+            className={`w-5 h-5 flex-shrink-0 transition-[filter] duration-200 ${colorClass}`}
+            style={isActive ? { filter: iconGlow, color: color.hex } : { color: color.hex }}
+          />
+          {showLabels && (
+            <span
+              data-sidebar-text
+              className={`truncate transition-[text-shadow] duration-200 flex-1 ${colorClass}`}
+              style={
+                isActive ? { textShadow: textGlow, color: color.hex } : { color: color.hex }
+              }
+            >
+              {item.label}
+            </span>
+          )}
+          {showLabels && (item.badge ?? 0) > 0 && (
+            <span
+              className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-amber-500 !text-white text-xs font-bold"
+              aria-label={`${item.badge} pendientes`}
+            >
+              {item.badge! > 99 ? '99+' : item.badge}
+            </span>
+          )}
+        </Link>
+      </li>
+    )
+  }
 
   /** Contenido del menú (nav + pie) para reutilizar en desktop y móvil */
   const sidebarContent = (
     <>
-      {/* Navegación por grupos */}
+      {/* Navegación por grupos (acordeón con cabeceras cuando hay etiquetas) */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 min-h-0">
-        {itemsByGroup.map((group) => (
-          <div key={group.key} className="mb-4">
-            {showLabels && (
-              <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                {group.title}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {group.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== '/dashboard' && pathname.startsWith(item.href))
-                const color = CATEGORY_COLORS[item.category]
-                const glowShadow = `0 0 16px rgba(${color.rgb}, 0.45)`
-                const glowShadowStrong = `0 0 20px rgba(${color.rgb}, 0.6)`
-                const textGlow = `0 0 12px ${color.hex}, 0 0 4px ${color.hex}`
-                const iconGlow = `drop-shadow(0 0 6px ${color.hex})`
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      title={!showLabels ? item.label : undefined}
-                      onClick={isMobile ? onMobileClose : undefined}
-                      className={`
-                        flex items-center gap-3 pl-2 pr-3 py-2.5 rounded-r-lg text-sm font-medium
-                        transition-all duration-200 border-l-[3px]
-                        ${isActive ? 'bg-slate-700/60' : 'hover:bg-slate-700/40'}
-                        ${color.class}
-                      `}
-                      style={{
-                        borderLeftColor: color.hex,
-                        boxShadow: isActive ? glowShadowStrong : undefined,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (isMobile) return
-                        e.currentTarget.style.boxShadow = isActive ? glowShadowStrong : glowShadow
-                        const icon = e.currentTarget.querySelector('[data-sidebar-icon]')
-                        const text = e.currentTarget.querySelector('[data-sidebar-text]')
-                        if (icon) (icon as HTMLElement).style.filter = iconGlow
-                        if (text) (text as HTMLElement).style.textShadow = textGlow
-                      }}
-                      onMouseLeave={(e) => {
-                        if (isMobile) return
-                        if (!isActive) e.currentTarget.style.boxShadow = ''
-                        const icon = e.currentTarget.querySelector('[data-sidebar-icon]')
-                        const text = e.currentTarget.querySelector('[data-sidebar-text]')
-                        if (icon) (icon as HTMLElement).style.filter = isActive ? iconGlow : ''
-                        if (text) (text as HTMLElement).style.textShadow = isActive ? textGlow : ''
-                      }}
+        {itemsByGroup.map((group) => {
+          const open = isGroupOpen(group.key, group.items)
+          const headerColor = CATEGORY_COLORS[group.key].class.replace(/^text-/, '!text-')
+          return (
+            <div key={group.key} className="mb-2 last:mb-0">
+              {showLabels ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key, group.items)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 rounded-lg text-left hover:bg-slate-800/60 transition-colors border border-transparent hover:border-slate-700/50"
+                    aria-expanded={open}
+                  >
+                    <span
+                      className={`text-[11px] font-semibold uppercase tracking-wider ${headerColor}`}
+                      style={{ color: CATEGORY_COLORS[group.key].hex }}
                     >
-                      <item.icon
-                        data-sidebar-icon
-                        className="w-5 h-5 flex-shrink-0 transition-[filter] duration-200"
-                        style={isActive ? { filter: iconGlow } : undefined}
-                      />
-                      {showLabels && (
-                        <span
-                          data-sidebar-text
-                          className="truncate transition-[text-shadow] duration-200 flex-1"
-                          style={isActive ? { textShadow: textGlow } : undefined}
-                        >
-                          {item.label}
-                        </span>
-                      )}
-                      {showLabels && (item.badge ?? 0) > 0 && (
-                        <span
-                          className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-amber-500 text-white text-xs font-bold"
-                          aria-label={`${item.badge} pendientes`}
-                        >
-                          {item.badge! > 99 ? '99+' : item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        ))}
+                      {group.title}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 flex-shrink-0 opacity-90 transition-transform duration-200 ${headerColor} ${
+                        open ? 'rotate-180' : ''
+                      }`}
+                      style={{ color: CATEGORY_COLORS[group.key].hex }}
+                      aria-hidden
+                    />
+                  </button>
+                  {open && <ul className="space-y-0.5 mt-0.5">{group.items.map(renderNavLink)}</ul>}
+                </>
+              ) : (
+                <ul className="space-y-0.5">{group.items.map(renderNavLink)}</ul>
+              )}
+            </div>
+          )
+        })}
       </nav>
 
       {/* Parte inferior fija: usuario, Ayuda, Contraseña, Salir */}
@@ -268,16 +349,16 @@ export function Sidebar({
           onClick={isMobile ? onMobileClose : undefined}
         >
           <HelpCircle className="w-5 h-5 flex-shrink-0" />
-          {showLabels && <span className="text-sm">Ayuda</span>}
+          {showLabels && <span className="text-sm !text-inherit">Ayuda</span>}
         </Link>
         <Link
           href="/cambiar-contrasena"
-          className="sidebar-bottom-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-700/40 transition-all"
+          className="sidebar-bottom-link flex items-center gap-3 px-3 py-2 rounded-lg !text-slate-300 hover:!text-sky-400 hover:bg-slate-700/40 transition-all"
           title="Cambiar contraseña"
           onClick={isMobile ? onMobileClose : undefined}
         >
           <Key className="w-5 h-5 flex-shrink-0" />
-          {showLabels && <span className="text-sm">Contraseña</span>}
+          {showLabels && <span className="text-sm !text-inherit">Contraseña</span>}
         </Link>
         <button
           type="button"
@@ -285,11 +366,11 @@ export function Sidebar({
             if (isMobile) onMobileClose?.()
             onLogout()
           }}
-          className="sidebar-bottom-link w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-700/40 transition-all text-left"
+          className="sidebar-bottom-link w-full flex items-center gap-3 px-3 py-2 rounded-lg !text-slate-300 hover:!text-red-400 hover:bg-slate-700/40 transition-all text-left"
           title="Salir"
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
-          {showLabels && <span className="text-sm">Salir</span>}
+          {showLabels && <span className="text-sm !text-inherit">Salir</span>}
         </button>
       </div>
     </>

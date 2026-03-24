@@ -151,5 +151,44 @@ export function formatDateCustom(date: Date | string, formatStr: string): string
   return formatDate(d)
 }
 
+/**
+ * Formatea una fecha como "15 ene 2025" (solo fecha, sin hora)
+ * en zona horaria de República Dominicana.
+ */
+export function formatCalendarDateDominican(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '—'
+  try {
+    const d = typeof dateInput === 'string'
+      ? new Date(dateInput.includes('T') ? dateInput : dateInput + 'T00:00:00')
+      : dateInput
+    if (isNaN(d.getTime())) return String(dateInput)
+    return d.toLocaleDateString('es-DO', {
+      timeZone: TIMEZONE_DOMINICANA,
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return String(dateInput)
+  }
+}
 
-
+/**
+ * Formatea la hora en formato 12 horas (AM/PM) en zona horaria dominicana.
+ * Ejemplo: "02:30 p. m."
+ */
+export function formatTime12Dominican(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '—'
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+    if (isNaN(d.getTime())) return String(dateInput)
+    return d.toLocaleTimeString('es-DO', {
+      timeZone: TIMEZONE_DOMINICANA,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  } catch {
+    return String(dateInput)
+  }
+}

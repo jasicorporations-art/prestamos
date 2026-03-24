@@ -313,3 +313,36 @@ export function obtenerNombreNivelMora(nivelMora: NivelMora): string {
   }
 }
 
+/**
+ * Obtiene el total de cargos de mora pendientes para el dashboard.
+ * Retorna el total actual y null para el período anterior (no disponible).
+ */
+export async function getTotalCargosMoraParaDashboard(): Promise<{
+  totalMoraPendiente: number
+  totalAnterior: number | null
+}> {
+  const { data, error } = await supabase
+    .from('ventas')
+    .select('mora_pendiente')
+    .gt('mora_pendiente', 0)
+
+  if (!error && data) {
+    const totalMoraPendiente = data.reduce(
+      (sum, v) => sum + Number((v as any).mora_pendiente ?? 0),
+      0
+    )
+    return { totalMoraPendiente, totalAnterior: null }
+  }
+
+  // Fallback compatible: si no existe mora_pendiente, usar mora calculada por el servicio.
+  try {
+    // Aproximar "solo mora" sumando cargo de mora por cada cliente moroso.
+    const clientes = await obtenerClientesMorosos()
+    const mora = clientes.reduce((sum, c) => sum + Number(c.montoMora || 0), 0)
+    return { totalMoraPendiente: mora, totalAnterior: null }
+  } catch {
+    return { totalMoraPendiente: 0, totalAnterior: null }
+  }
+}
+
+

@@ -17,6 +17,7 @@ import {
   UserPlus,
   Shield,
   MessageCircle,
+  ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/Button'
 import { useCompania } from '@/lib/contexts/CompaniaContext'
@@ -86,6 +87,8 @@ export default function SuperAdminPage() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [latency, setLatency] = useState<{ ms: number; status: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  /** Primera carga: el overview nunca es "falsy", así que antes no se veía el spinner y la UI quedaba en ceros hasta que llegaban los datos. */
+  const [bootstrapped, setBootstrapped] = useState(false)
   const [logsDesde, setLogsDesde] = useState('')
   const [logsHasta, setLogsHasta] = useState('')
   const [logsTenant, setLogsTenant] = useState('')
@@ -190,9 +193,12 @@ export default function SuperAdminPage() {
     try {
       const headers = await getAuthHeaders()
       const res = await fetch('/api/super-admin/cuentas', { credentials: 'include', headers })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        const data = await res.json()
         setCuentas(data.cuentas || [])
+      } else {
+        console.warn('[super-admin] cuentas:', res.status, data?.error || data)
+        setCuentas([])
       }
     } catch (e) {
       console.error(e)
@@ -203,8 +209,8 @@ export default function SuperAdminPage() {
     try {
       const headers = await getAuthHeaders()
       const res = await fetch('/api/super-admin/whatsapp-consumo', { credentials: 'include', headers })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        const data = await res.json()
         const filas: WhatsAppConsumoFila[] = (data.filas || []).map((f: {
           empresa_id: string
           empresa_nombre: string
@@ -234,18 +240,26 @@ export default function SuperAdminPage() {
     let ok = true
     const run = async () => {
       setLoading(true)
-      await Promise.all([
-        fetchOverview(),
-        fetchEmpresas(),
-        fetchCuentas(),
-        fetchLogs(),
-        fetchLatency(),
-        fetchWhatsappConsumo(),
-      ])
-      if (ok) setLoading(false)
+      try {
+        await Promise.all([
+          fetchOverview(),
+          fetchEmpresas(),
+          fetchCuentas(),
+          fetchLogs(),
+          fetchLatency(),
+          fetchWhatsappConsumo(),
+        ])
+      } finally {
+        if (ok) {
+          setLoading(false)
+          setBootstrapped(true)
+        }
+      }
     }
     run()
-    return () => { ok = false }
+    return () => {
+      ok = false
+    }
   }, [fetchOverview, fetchEmpresas, fetchCuentas, fetchLogs, fetchLatency, fetchWhatsappConsumo])
 
   useEffect(() => {
@@ -311,7 +325,7 @@ export default function SuperAdminPage() {
     ]).finally(() => setLoading(false))
   }
 
-  if (loading && !overview) {
+  if (!bootstrapped) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-gray-400">Cargando Centro de Comando...</div>
@@ -336,11 +350,24 @@ export default function SuperAdminPage() {
               Super Usuario
             </span>
           </div>
-          <h1 className="text-xl font-bold text-white">Centro de Comando JasiCorp</h1>
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-white text-center sm:text-left truncate">
+              Centro de Comando JasiCorp
+            </h1>
+            <Button
+              variant="secondary"
+              onClick={() => router.push('/super-admin/auditoria')}
+              className="shrink-0 bg-gray-800 text-gray-200 hover:bg-gray-700 border-gray-700 text-sm"
+              title="Movimientos de auditoría de todas las empresas (BD / triggers)"
+            >
+              <ClipboardList className="w-4 h-4 mr-2" />
+              Auditoría global
+            </Button>
+          </div>
           <button
             onClick={refreshAll}
             disabled={loading}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50 shrink-0"
             title="Actualizar todo"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -429,7 +456,7 @@ export default function SuperAdminPage() {
             </div>
             {(!whatsappConsumo?.filas || whatsappConsumo.filas.length === 0) && (
               <div className="px-4 py-8 text-center text-gray-500">
-                No hay empresas con WhatsApp Premium o sin consumo este mes.
+                No hay empresas con WhatsApp Premium / Evolution activo, o aún no hay filas de consumo para este mes.
               </div>
             )}
           </div>

@@ -10,9 +10,12 @@ import { rutasService, type VentaEnRuta } from '@/lib/services/rutas'
 import { getMapsNavigationUrl } from '@/lib/utils/mapsNavigation'
 import { ventasService } from '@/lib/services/ventas'
 import type { Venta } from '@/types'
+import { AvatarCliente } from '@/components/AvatarCliente'
+import { toast } from '@/lib/toast'
 
 export default function MiRutaDeHoyPage() {
   const [ruta, setRuta] = useState<VentaEnRuta[]>([])
+  const [cobradosHoy, setCobradosHoy] = useState<VentaEnRuta[]>([])
   const [meta, setMeta] = useState(0)
   const [cobrado, setCobrado] = useState(0)
   const [pendiente, setPendiente] = useState(0)
@@ -20,19 +23,35 @@ export default function MiRutaDeHoyPage() {
   const [pagoModalOpen, setPagoModalOpen] = useState(false)
   const [ventaParaPago, setVentaParaPago] = useState<Venta | null>(null)
   const [ventasParaPago, setVentasParaPago] = useState<Venta[]>([])
+  const [clientePopoverId, setClientePopoverId] = useState<string | null>(null)
+
+  useEffect(() => {
+    function handleClickFueraPopover(event: MouseEvent) {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      const dentroPopover = target.closest('[data-ruta-popover="true"]')
+      if (!dentroPopover) {
+        setClientePopoverId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickFueraPopover)
+    return () => document.removeEventListener('mousedown', handleClickFueraPopover)
+  }, [])
 
   const loadRuta = useCallback(async () => {
     try {
       setLoading(true)
-      const { items, meta: m, cobrado: c, pendiente: p } = await rutasService.getMiRutaDeHoyFiltrada()
+      const { items, cobradosHoy: cobradosLista, meta: m, cobrado: c, pendiente: p } = await rutasService.getMiRutaDeHoyFiltrada()
       setRuta(items)
+      setCobradosHoy(cobradosLista)
       setMeta(m)
       setCobrado(c)
       setPendiente(p)
     } catch (error: any) {
       console.error('Error cargando ruta:', error)
       if (!error.message?.includes('mi_ruta_de_hoy')) {
-        alert(`Error: ${error.message || 'No se pudo cargar la ruta'}`)
+        toast.error(`Error: ${error.message || 'No se pudo cargar la ruta'}`)
       }
       setRuta([])
     } finally {
@@ -48,7 +67,7 @@ export default function MiRutaDeHoyPage() {
     try {
       const venta = await ventasService.getById(item.id)
       if (!venta) {
-        alert('No se encontró el préstamo')
+        toast.warning('No se encontró el préstamo')
         return
       }
       setVentaParaPago(venta)
@@ -56,7 +75,7 @@ export default function MiRutaDeHoyPage() {
       setPagoModalOpen(true)
     } catch (error: any) {
       console.error('Error abriendo pago:', error)
-      alert(`Error: ${error.message || 'No se pudo abrir el formulario'}`)
+      toast.error(`Error: ${error.message || 'No se pudo abrir el formulario'}`)
     }
   }
 
@@ -73,7 +92,7 @@ export default function MiRutaDeHoyPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Mi Ruta de Hoy</h1>
           <p className="text-sm sm:text-base text-gray-600">
-            Clientes con cuota vencida o programada para hoy • Pendientes arriba, cobrados abajo
+            Atrasados + hoy (fecha programada ≤ hoy) • Los morosos no salen hasta que paguen • Cobrados abajo
           </p>
         </div>
         <div className="flex gap-2">
@@ -100,6 +119,7 @@ export default function MiRutaDeHoyPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-400 uppercase tracking-wide">Meta del día</p>
+                <p className="text-xs text-slate-500 mt-0.5">Atrasados + hoy</p>
                 <p className="text-2xl sm:text-3xl font-bold text-amber-100 tabular-nums">
                   ${meta.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
@@ -122,6 +142,7 @@ export default function MiRutaDeHoyPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-400 uppercase tracking-wide">Pendiente</p>
+                <p className="text-xs text-slate-500 mt-0.5">Por recuperar (atrasados + hoy)</p>
                 <p className="text-2xl sm:text-3xl font-bold text-orange-300 tabular-nums">
                   ${pendiente.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
@@ -148,20 +169,30 @@ export default function MiRutaDeHoyPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Cargando tu ruta...</p>
+        <div className="space-y-3 animate-pulse">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-gray-200 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-40 bg-gray-200 rounded" />
+                <div className="h-3 w-56 bg-gray-100 rounded" />
+              </div>
+              <div className="h-8 w-20 bg-gray-100 rounded-xl" />
+            </div>
+          ))}
         </div>
       ) : ruta.length === 0 ? (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg">
-          <p className="text-amber-800 font-medium">No hay cobros pendientes hoy</p>
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+          <p className="text-amber-800 font-medium">No hay cobros pendientes</p>
           <p className="text-amber-700 text-sm mt-2">
-            Solo se muestran clientes con cuota vencida o programada para hoy según su frecuencia de pago.
+            Se muestran clientes con cuota atrasada o programada para hoy (fecha ≤ hoy). Los morosos permanecen hasta que paguen.
           </p>
           <Link href="/caja" className="inline-block mt-4">
             <Button variant="secondary">Ir a Caja</Button>
           </Link>
         </div>
       ) : (
+        <div>
         <div className="space-y-4">
           {(() => {
             const pagoInfoPorItem = new Map<string, { pagoNum: number; totalPagos: number }>()
@@ -179,13 +210,13 @@ export default function MiRutaDeHoyPage() {
             return ruta.map((item, index) => {
               const pagoInfo = pagoInfoPorItem.get(item.id)
               return (
-            <div
-              key={item.id}
-              className="bg-white rounded-lg shadow border border-gray-200 hover:shadow-md overflow-hidden transition-shadow"
-            >
-              <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <div
+                  key={item.id}
+                  className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md overflow-visible transition-shadow"
+                >
+                  <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-100 text-sky-700 font-semibold text-sm">
                       {item.orden_visita ?? index + 1}
                     </span>
@@ -197,28 +228,84 @@ export default function MiRutaDeHoyPage() {
                         {item.ruta_nombre}
                       </span>
                     )}
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-orange-700 bg-orange-100">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      PENDIENTE
-                    </span>
+                    {(item.diasAtraso ?? 0) > 0 ? (
+                      <>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-red-700 bg-red-100 border border-red-200">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          MOROSO / ATRASADO
+                        </span>
+                        <span className="text-xs font-medium text-red-600">
+                          {item.diasAtraso} {item.diasAtraso === 1 ? 'día' : 'días'} de atraso
+                        </span>
+                      </>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-orange-700 bg-orange-100">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        PENDIENTE
+                      </span>
+                    )}
                     {item.indicadorRuta && (
                       <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
                         {item.indicadorRuta}
                       </span>
                     )}
-                  </div>
-                    <h3 className="font-semibold text-gray-900 truncate flex items-center gap-2 flex-wrap">
-                      {item.cliente_nombre || 'Cliente'}
-                      {pagoInfo && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                          Pago {pagoInfo.pagoNum} de {pagoInfo.totalPagos}
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1 truncate">
-                      {item.motor_marca} {item.motor_modelo} {item.motor_matricula && `· ${item.motor_matricula}`}
-                    </p>
-                    <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-500">
+                      </div>
+                      <h3 className="font-semibold text-gray-900 truncate flex items-center gap-2 flex-wrap">
+                        <div className="relative shrink-0" data-ruta-popover="true">
+                          <button
+                            type="button"
+                            className="inline-flex rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            title="Acciones del cliente"
+                            aria-label="Acciones del cliente"
+                            onClick={() => {
+                              setClientePopoverId((prev) => (prev === item.id ? null : item.id))
+                            }}
+                          >
+                            <AvatarCliente
+                              nombreCompleto={item.cliente_nombre || 'Cliente'}
+                              fotoUrl={item.cliente_foto_url || undefined}
+                              size="lg"
+                            />
+                          </button>
+
+                          {clientePopoverId === item.id && (
+                            <div className="absolute left-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-[0_18px_40px_-14px_rgba(15,23,42,0.35)]">
+                              <div className="px-3 py-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                  Acceso rápido
+                                </p>
+                                <p className="text-xs text-slate-400 truncate">{item.cliente_nombre || 'Cliente'}</p>
+                              </div>
+                              <div className="p-2 space-y-2">
+                                <Link
+                                  href={item.cliente_id ? `/ventas/nuevo?cliente_id=${encodeURIComponent(item.cliente_id)}` : '/ventas/nuevo'}
+                                  className="block w-full min-w-0 text-xs font-semibold px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors text-center leading-snug"
+                                  onClick={() => setClientePopoverId(null)}
+                                >
+                                  Nuevo Préstamo
+                                </Link>
+                                <Link
+                                  href={item.cliente_id ? `/clientes/${item.cliente_id}` : '/clientes'}
+                                  className="block w-full min-w-0 text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors text-center leading-snug"
+                                  onClick={() => setClientePopoverId(null)}
+                                >
+                                  Ver expediente
+                                </Link>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <span>{item.cliente_nombre || 'Cliente'}</span>
+                        {pagoInfo && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                            Pago {pagoInfo.pagoNum} de {pagoInfo.totalPagos}
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1 truncate">
+                        {item.motor_marca} {item.motor_modelo} {item.motor_matricula && `· ${item.motor_matricula}`}
+                      </p>
+                      <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-500">
                       {item.cliente_direccion && (
                         <a
                           href={getMapsNavigationUrl(item.cliente_direccion)}
@@ -237,39 +324,117 @@ export default function MiRutaDeHoyPage() {
                           {item.cliente_celular}
                         </span>
                       )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex sm:flex-col items-center sm:items-end gap-3 sm:gap-2">
-                    {item.cliente_direccion && (
-                      <a
-                        href={getMapsNavigationUrl(item.cliente_direccion)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 font-medium text-sm whitespace-nowrap"
+                    <div className="flex sm:flex-col items-center sm:items-end gap-3 sm:gap-2">
+                      {item.cliente_direccion && (
+                        <a
+                          href={getMapsNavigationUrl(item.cliente_direccion)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 font-medium text-sm whitespace-nowrap"
+                        >
+                          <Navigation className="w-4 h-4" />
+                          Cómo llegar
+                        </a>
+                      )}
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Saldo pendiente</p>
+                        <p className="text-lg font-bold text-gray-900">
+                          ${(item.saldo_pendiente ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleRecogerPago(item)}
+                        className="flex items-center gap-2 whitespace-nowrap"
                       >
-                        <Navigation className="w-4 h-4" />
-                        Cómo llegar
-                      </a>
-                    )}
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">Saldo pendiente</p>
-                      <p className="text-lg font-bold text-gray-900">
-                        ${(item.saldo_pendiente ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}
-                      </p>
+                        <CheckCircle className="w-4 h-4" />
+                        Recoger Pago
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => handleRecogerPago(item)}
-                      className="flex items-center gap-2 whitespace-nowrap"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Recoger Pago
-                    </Button>
                   </div>
                 </div>
-              </div>
-            )
-          })
+              )
+            })
         })()}
+        </div>
+
+        {cobradosHoy.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Cobrados hoy
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">Estos clientes ya registraron pago hoy y salieron de pendientes.</p>
+            <div className="space-y-3">
+              {cobradosHoy.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-gray-50 rounded-lg border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="relative shrink-0" data-ruta-popover="true">
+                        <button
+                          type="button"
+                          className="inline-flex rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          title="Acciones del cliente"
+                          aria-label="Acciones del cliente"
+                          onClick={() => {
+                            setClientePopoverId((prev) => (prev === item.id ? null : item.id))
+                          }}
+                        >
+                          <AvatarCliente
+                            nombreCompleto={item.cliente_nombre || 'Cliente'}
+                            fotoUrl={item.cliente_foto_url || undefined}
+                            size="lg"
+                          />
+                        </button>
+                        {clientePopoverId === item.id && (
+                          <div className="absolute left-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-[0_18px_40px_-14px_rgba(15,23,42,0.35)]">
+                            <div className="px-3 py-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                Acceso rápido
+                              </p>
+                              <p className="text-xs text-slate-400 truncate">{item.cliente_nombre || 'Cliente'}</p>
+                            </div>
+                            <div className="p-2 space-y-2">
+                              <Link
+                                href={item.cliente_id ? `/ventas/nuevo?cliente_id=${encodeURIComponent(item.cliente_id)}` : '/ventas/nuevo'}
+                                className="block w-full min-w-0 text-xs font-semibold px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors text-center leading-snug"
+                                onClick={() => setClientePopoverId(null)}
+                              >
+                                Nuevo Préstamo
+                              </Link>
+                              <Link
+                                href={item.cliente_id ? `/clientes/${item.cliente_id}` : '/clientes'}
+                                className="block w-full min-w-0 text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors text-center leading-snug"
+                                onClick={() => setClientePopoverId(null)}
+                              >
+                                Ver expediente
+                              </Link>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <span className="font-semibold text-gray-900">{item.cliente_nombre || 'Cliente'}</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-green-100">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Cobrado
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-0.5">
+                      {item.motor_marca} {item.motor_modelo} {item.motor_matricula && `· ${item.motor_matricula}`}
+                    </p>
+                  </div>
+                  <div className="text-right text-sm text-gray-500">
+                    Saldo pendiente: ${(item.saldo_pendiente ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
       )}
 

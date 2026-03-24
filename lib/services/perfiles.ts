@@ -194,26 +194,39 @@ export const perfilesService = {
   },
 
   /**
+   * Normaliza el rol de BD (p. ej. "admin", "ADMIN", "Admin") al valor canónico de la app.
+   * Evita que /admin/* redirija al dashboard cuando el CHECK de Postgres guarda minúsculas.
+   */
+  normalizarRol(raw: string | null | undefined): 'Admin' | 'Vendedor' | 'super_admin' | null {
+    if (raw == null || String(raw).trim() === '') return null
+    const n = String(raw).trim().toLowerCase().replace(/\s+/g, '_')
+    if (n === 'super_admin' || n === 'superadmin') return 'super_admin'
+    if (n === 'admin') return 'Admin'
+    if (n === 'vendedor' || n === 'cobrador') return 'Vendedor'
+    return null
+  },
+
+  /**
    * Obtiene el rol del usuario actual
    */
   async getRolActual(): Promise<'Admin' | 'Vendedor' | 'super_admin' | null> {
     const perfil = await this.getPerfilActual()
-    return perfil?.rol || null
+    return this.normalizarRol(perfil?.rol ?? null)
   },
 
   /**
    * Verifica si el usuario actual es Admin o Super Admin (acceso completo a funciones de admin).
+   * Incluye plan TRIAL: mismo criterio que AppShell (rol admin o trial = acceso a panel y rutas /admin/*).
    */
   async esAdmin(): Promise<boolean> {
     try {
       const rol = await this.getRolActual()
-      console.log('🔍 Rol actual del usuario:', rol)
-      const tieneAccesoAdmin = rol === 'Admin' || rol === 'super_admin'
-      console.log('🔍 ¿Tiene acceso admin?:', tieneAccesoAdmin)
-      return tieneAccesoAdmin
+      if (rol === 'Admin' || rol === 'super_admin') return true
+      const { subscriptionService } = await import('./subscription')
+      const plan = await subscriptionService.getCurrentPlan()
+      return plan === 'TRIAL'
     } catch (error) {
       console.error('Error verificando si es Admin:', error)
-      // Si no se puede verificar, retornar false
       return false
     }
   },

@@ -84,8 +84,10 @@ export default function MapaCobrosPage() {
   if (isAdmin === false) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg flex items-start gap-4">
-          <ShieldAlert className="w-10 h-10 flex-shrink-0 text-amber-600" />
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <ShieldAlert className="w-5 h-5 text-amber-600" />
+          </div>
           <div>
             <h2 className="text-lg font-semibold text-amber-900">Acceso restringido</h2>
             <p className="text-amber-800 mt-1">
@@ -119,7 +121,7 @@ export default function MapaCobrosPage() {
             <select
               value={rutaId}
               onChange={(e) => setRutaId(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm min-w-[160px]"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[160px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">Todas las rutas</option>
               {rutas.map((r) => (
@@ -135,7 +137,7 @@ export default function MapaCobrosPage() {
               type="date"
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </label>
           <Button variant="secondary" onClick={loadPagos} disabled={loading}>
@@ -180,17 +182,17 @@ export default function MapaCobrosPage() {
               </span>
             )}
           </h3>
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto border border-gray-100 rounded-xl shadow-sm">
+            <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Cliente</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-700 uppercase">Monto</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Coordenadas</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Acción</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Monto</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coordenadas</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {pagosFiltrados.map((p) => {
                   const lat = p.latitud_cobro
                   const lng = p.longitud_cobro
@@ -229,7 +231,18 @@ export default function MapaCobrosPage() {
       )}
 
       {loading && (
-        <div className="mt-4 text-center text-gray-500">Cargando cobros...</div>
+        <div className="mt-4 space-y-3 animate-pulse">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4">
+              <div className="w-9 h-9 rounded-xl bg-gray-200 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-40 bg-gray-200 rounded" />
+                <div className="h-3 w-56 bg-gray-100 rounded" />
+              </div>
+              <div className="h-6 w-20 bg-gray-100 rounded-full" />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

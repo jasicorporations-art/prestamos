@@ -14,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   )
 }
 
-if (!SUPABASE_SERVICE_ROLE_KEY) {
+if (!SUPABASE_SERVICE_ROLE_KEY && typeof window === 'undefined') {
   console.warn(
     '⚠️ Advertencia: SUPABASE_SERVICE_ROLE_KEY no está definida. El cliente admin no funcionará.'
   )

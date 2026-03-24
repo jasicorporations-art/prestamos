@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { subscriptionService } from '@/lib/services/subscription'
 import type { PlanType } from '@/lib/config/planes'
+import { toast } from '@/lib/toast'
 
 function formatDate(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0')
@@ -361,7 +362,8 @@ export default function AdminPanel() {
 
   const cuotasVencidas = cuotas.filter(c => c.estado === 'vencida').length
   const cuotasPorVencer = cuotas.filter(c => c.estado === 'por_vencer').length
-  const totalPendiente = cuotas.reduce((sum, c) => sum + c.totalAPagar, 0)
+  // Suma de (cuotas vencidas + moras) de todos los clientes (cada fila = una cuota con su monto + penalidad)
+  const totalPendiente = Math.round(cuotas.reduce((sum, c) => sum + c.totalAPagar, 0) * 100) / 100
 
   // Filtrar pagos por término de búsqueda
   const pagosFiltrados = pagos.filter((pago) => {
@@ -400,31 +402,31 @@ export default function AdminPanel() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => router.push('/admin/aprobaciones')}
-            className="px-4 py-2 bg-amber-100 text-amber-800 rounded-md hover:bg-amber-200 transition-colors flex items-center"
+            className="px-3 py-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
             title="Préstamos y renovaciones pendientes de aprobación"
           >
-            <FileCheck className="w-4 h-4 mr-2" />
+            <FileCheck className="w-4 h-4" />
             Aprobaciones
           </button>
           {planType !== 'BRONCE' && (
             <>
               <button
                 onClick={() => router.push('/admin/tesoreria')}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center"
+                className="px-3 py-2 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
                 title="Consolidado de caja"
               >
-                <DollarSign className="w-4 h-4 mr-2" />
+                <DollarSign className="w-4 h-4" />
                 Tesorería
               </button>
               <button
                 onClick={() => router.push('/admin/migracion')}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center"
+                className="px-3 py-2 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
                 title="Migrar cartera desde otro software"
               >
-                <Database className="w-4 h-4 mr-2" />
+                <Database className="w-4 h-4" />
                 Migrar Cartera
               </button>
             </>
@@ -435,106 +437,78 @@ export default function AdminPanel() {
               loadClientes()
             }}
             disabled={loading || loadingClientes}
-            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 text-sm font-medium shadow-sm"
             title="Actualizar datos"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading || loadingClientes ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading || loadingClientes ? 'animate-spin' : ''}`} />
             Actualizar
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 border-b border-gray-200 no-print">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('cuotas')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'cuotas'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Cuotas Pendientes
-          </button>
-          <button
-            onClick={() => setActiveTab('clientes')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'clientes'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <Users className="w-4 h-4 inline mr-2" />
-            Todos los Préstamos Activos ({clientes.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('pagos')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'pagos'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <Receipt className="w-4 h-4 inline mr-2" />
-            Facturas Pagadas ({pagos.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('amortizacion')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'amortizacion'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <Printer className="w-4 h-4 inline mr-2" />
-            Amortización de Préstamos ({ventas.length})
-          </button>
-        </nav>
+      <div className="mb-6 no-print">
+        <div className="flex flex-wrap gap-2 p-1 bg-gray-100 rounded-xl w-fit">
+          {([
+            { key: 'cuotas', label: 'Cuotas Pendientes', icon: AlertCircle },
+            { key: 'clientes', label: `Préstamos Activos (${clientes.length})`, icon: Users },
+            { key: 'pagos', label: `Facturas Pagadas (${pagos.length})`, icon: Receipt },
+            { key: 'amortizacion', label: `Amortización (${ventas.length})`, icon: Printer },
+          ] as const).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === key
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Resumen - Solo mostrar en tab de cuotas */}
       {activeTab === 'cuotas' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Cuotas Vencidas</p>
-                <p className="text-3xl font-bold text-red-600 mt-2">{cuotasVencidas}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-red-100 p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-red-500" />
               </div>
-              <div className="bg-red-100 p-3 rounded-full">
-                <AlertCircle className="w-8 h-8 text-red-600" />
-              </div>
+              <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">Atrasadas</span>
             </div>
+            <p className="text-3xl font-bold text-red-600 mb-0.5">{cuotasVencidas}</p>
+            <p className="text-sm text-gray-500">Cuotas vencidas</p>
+            <p className="text-xs text-gray-400 mt-1">Cuotas en atraso de todos los clientes</p>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Por Vencer (3 días)</p>
-                <p className="text-3xl font-bold text-yellow-600 mt-2">{cuotasPorVencer}</p>
+          <div className="bg-white rounded-xl shadow-sm border border-amber-100 p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-amber-500" />
               </div>
-              <div className="bg-yellow-100 p-3 rounded-full">
-                <Calendar className="w-8 h-8 text-yellow-600" />
-              </div>
+              <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Próximas</span>
             </div>
+            <p className="text-3xl font-bold text-amber-600 mb-0.5">{cuotasPorVencer}</p>
+            <p className="text-sm text-gray-500">Por vencer</p>
+            <p className="text-xs text-gray-400 mt-1">Vencen en los próximos 3 días</p>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Pendiente</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  ${totalPendiente.toLocaleString('es-DO', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-full">
-                <MessageCircle className="w-8 h-8 text-blue-600" />
+          <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-blue-500" />
               </div>
             </div>
+            <p className="text-2xl font-bold text-gray-900 mb-0.5">
+              ${totalPendiente.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <p className="text-sm text-gray-500">Total pendiente</p>
+            <p className="text-xs text-gray-400 mt-1">Cuotas vencidas + moras acumuladas</p>
           </div>
         </div>
       )}
@@ -543,9 +517,22 @@ export default function AdminPanel() {
       {activeTab === 'cuotas' && (
         <>
           {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Cargando cuotas pendientes...</p>
+        <div className="animate-pulse bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className={`flex items-center gap-4 px-6 py-4 border-b border-gray-50 ${i % 3 === 0 ? 'bg-red-50/40' : i % 3 === 1 ? 'bg-amber-50/30' : ''}`}>
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-36 bg-gray-200 rounded" />
+                <div className="h-3 w-20 bg-gray-100 rounded" />
+              </div>
+              <div className="w-24 h-3 bg-gray-100 rounded" />
+              <div className="w-32 h-3 bg-gray-100 rounded" />
+              <div className="w-20 h-3 bg-gray-100 rounded" />
+              <div className="w-20 h-3 bg-gray-100 rounded" />
+              <div className="w-16 h-3 bg-gray-100 rounded" />
+              <div className="w-20 h-3 bg-gray-100 rounded" />
+              <div className="w-8 h-8 rounded-lg bg-gray-100" />
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
@@ -558,17 +545,17 @@ export default function AdminPanel() {
           </button>
         </div>
       ) : cuotas.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
           <p className="text-gray-500 mb-2">No hay cuotas vencidas o próximas a vencer</p>
           <p className="text-sm text-gray-400">
             Solo se muestran cuotas vencidas o que vencen en los próximos 3 días
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           {/* Tabla Desktop */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -597,7 +584,7 @@ export default function AdminPanel() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {cuotas.map((cuota) => (
                   <tr key={cuota.id} className={getRowClassName(cuota.estado, cuota.diasAtraso)}>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -672,7 +659,7 @@ export default function AdminPanel() {
           </div>
 
           {/* Vista Móvil */}
-          <div className="md:hidden divide-y divide-gray-200">
+          <div className="md:hidden divide-y divide-gray-100">
             {cuotas.map((cuota) => (
               <div
                 key={cuota.id}
@@ -787,17 +774,17 @@ export default function AdminPanel() {
               <p className="text-gray-500">Cargando clientes...</p>
             </div>
           ) : clientes.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
               <p className="text-gray-500">No hay clientes con préstamos activos</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden print:shadow-none print:p-0">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden print:shadow-none print:p-0">
               <div className="overflow-x-auto print:overflow-visible">
                 <div className="print-only mb-2 text-center print:text-xs">
                   <h1 className="text-2xl font-bold mb-2 print:text-base print:mb-1">Préstamos Activos</h1>
                   <p className="text-sm text-gray-600 print:text-xs">Fecha: {new Date().toLocaleDateString('es-DO')}</p>
                 </div>
-                <table className="min-w-full divide-y divide-gray-200 print:table-auto print:w-full">
+                <table className="min-w-full divide-y divide-gray-100 print:table-auto print:w-full">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:px-2 print:py-2 print:text-xs">
@@ -823,7 +810,7 @@ export default function AdminPanel() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-100">
                     {clientes.map((venta) => (
                       <tr key={venta.id} className="hover:bg-gray-50 print:hover:bg-white">
                         <td className="px-6 py-4 whitespace-nowrap print:px-2 print:py-2 print:whitespace-normal">
@@ -928,15 +915,15 @@ export default function AdminPanel() {
               <p className="text-gray-500">Cargando pagos...</p>
             </div>
           ) : pagos.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
               <p className="text-gray-500">No hay pagos registrados</p>
             </div>
           ) : pagosFiltrados.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
               <p className="text-gray-500">No se encontraron pagos con el término de búsqueda &quot;{searchTerm}&quot;</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden print:shadow-none print:p-0">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden print:shadow-none print:p-0">
               <div className="overflow-x-auto print:overflow-visible">
                 <div className="print-only mb-2 text-center print:text-xs">
                   <h1 className="text-2xl font-bold mb-2 print:text-base print:mb-1">Historial de Pagos</h1>
@@ -945,7 +932,7 @@ export default function AdminPanel() {
                     {searchTerm && ` | Búsqueda: ${searchTerm}`}
                   </p>
                 </div>
-                <table className="min-w-full divide-y divide-gray-200 print:table-auto print:w-full">
+                <table className="min-w-full divide-y divide-gray-100 print:table-auto print:w-full">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:px-2 print:py-2 print:text-xs">
@@ -971,7 +958,7 @@ export default function AdminPanel() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-100">
                     {pagosFiltrados.map((pago) => {
                       const fechaPago = new Date(pago.fecha_pago)
                       const cliente = pago.venta?.cliente
@@ -1066,7 +1053,7 @@ export default function AdminPanel() {
               <p className="text-gray-500">Cargando productos...</p>
             </div>
           ) : ventas.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
               <p className="text-gray-500">Aún no hay unidades en inventario. Agrega motores o productos desde la sección de inventario.</p>
             </div>
           ) : (
@@ -1081,13 +1068,13 @@ export default function AdminPanel() {
               })
 
               return ventasFiltradas.length === 0 ? (
-                <div className="bg-white rounded-lg shadow p-8 text-center">
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
                   <p className="text-gray-500">No se encontraron préstamos con el término de búsqueda &quot;{searchTerm}&quot;</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    <table className="min-w-full divide-y divide-gray-100">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1116,7 +1103,7 @@ export default function AdminPanel() {
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white divide-y divide-gray-100">
                         {ventasFiltradas.map((venta) => (
                           <tr key={venta.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1160,10 +1147,10 @@ export default function AdminPanel() {
                                     try {
                                       setGenerandoContrato(venta.id)
                                       await generarContrato(venta)
-                                      alert('Contrato generado exitosamente. Se abrirá en una nueva ventana para impresión.')
+                                      toast.success('Contrato generado exitosamente. Se abrirá en una nueva ventana para impresión.')
                                     } catch (error: any) {
                                       console.error('Error generando contrato:', error)
-                                      alert(`Error: ${error.message || 'No se pudo generar el contrato'}`)
+                                      toast.error(`Error: ${error.message || 'No se pudo generar el contrato'}`)
                                     } finally {
                                       setGenerandoContrato(null)
                                     }
@@ -1181,10 +1168,10 @@ export default function AdminPanel() {
                                       try {
                                         setGenerandoCarta(venta.id)
                                         await generarCartaSaldo(venta)
-                                        alert('Carta de Saldo generada exitosamente')
+                                        toast.success('Carta de Saldo generada exitosamente')
                                       } catch (error: any) {
                                         console.error('Error generando carta de saldo:', error)
-                                        alert(`Error: ${error.message || 'No se pudo generar la carta de saldo'}`)
+                                        toast.error(`Error: ${error.message || 'No se pudo generar la carta de saldo'}`)
                                       } finally {
                                         setGenerandoCarta(null)
                                       }

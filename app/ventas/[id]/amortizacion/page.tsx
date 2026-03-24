@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Printer, ArrowLeft } from 'lucide-react'
+import { Printer, ArrowLeft, Mail, MessageCircle } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/Button'
 import { ventasService } from '@/lib/services/ventas'
 import { authService } from '@/lib/services/auth'
 import { supabase } from '@/lib/supabase'
+import { isValidUUID } from '@/lib/utils/compania'
 import type { Venta } from '@/types'
 import { formatDateCustom } from '@/lib/utils/dateFormat'
+import { formatCurrency } from '@/lib/utils/currency'
 
 // Función para calcular fechas de pago semanal
 function calcularFechasPagoSemanal(diaSemana: number, cantidadSemanas: number, fechaInicio: Date): Date[] {
@@ -93,6 +96,9 @@ export default function AmortizacionPage() {
     telefono?: string
     email?: string
   } | null>(null)
+  const [nombreEmpresa, setNombreEmpresa] = useState<string | null>(null)
+  const [enviandoEmail, setEnviandoEmail] = useState(false)
+  const [enviandoWhatsApp, setEnviandoWhatsApp] = useState(false)
 
   useEffect(() => {
     if (ventaId) {
@@ -139,9 +145,19 @@ export default function AmortizacionPage() {
           setCuotas((cuotasData || []) as any)
         }
       }
+      // Nombre de empresa desde BD para impresión (nunca mostrar UUID)
+      const empresaId = (ventaData as { empresa_id?: string; compania_id?: string })?.empresa_id ?? (ventaData as { empresa_id?: string; compania_id?: string })?.compania_id
+      if (empresaId) {
+        try {
+          const { data: emp } = await supabase.from('empresas').select('nombre').eq('id', empresaId).single() as { data: { nombre?: string } | null }
+          if (emp?.nombre) setNombreEmpresa(emp.nombre)
+        } catch (e) {
+          console.warn('No se pudo cargar nombre de empresa para amortización:', e)
+        }
+      }
     } catch (error) {
       console.error('Error cargando datos:', error)
-      alert('Error al cargar los datos de la amortización')
+      toast.error('Error al cargar los datos de la amortización')
     } finally {
       setLoading(false)
     }
@@ -155,12 +171,12 @@ export default function AmortizacionPage() {
 
     try {
       if (!venta) {
-        alert('Error: No se puede imprimir. La amortización no está cargada completamente.')
+        toast.error('No se puede imprimir. La amortización no está cargada completamente.')
         return
       }
 
       if (typeof window === 'undefined' || typeof window.print !== 'function') {
-        alert('Error: window.print no está disponible en este entorno.')
+        toast.error('window.print no está disponible en este entorno.')
         return
       }
 
@@ -170,13 +186,74 @@ export default function AmortizacionPage() {
             window.print()
           } catch (error) {
             console.error('Error al llamar window.print():', error)
-            alert(`Error al abrir el diálogo de impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+            toast.error(`Error al abrir el diálogo de impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
           }
         }, 200)
       })
     } catch (error) {
       console.error('Error en handlePrint:', error)
-      alert(`Error al preparar la impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+      toast.error(`Error al preparar la impresión: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+    }
+  }
+
+  async function handleEnviarPorCorreo() {
+    if (!ventaId || !venta) return
+    setEnviandoEmail(true)
+    try {
+      const session = await authService.getSession()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+      const res = await fetch('/api/enviar-amortizacion-email', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          venta_id: ventaId,
+          cliente_email: (venta as any)?.cliente?.email,
+          cliente_nombre: (venta as any)?.cliente?.nombre_completo,
+          empresa_id: (venta as any)?.empresa_id ?? (venta as any)?.compania_id ?? null,
+        }),
+        credentials: 'include',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.enviado) {
+        toast.success('Amortización enviada por correo al cliente correctamente.')
+      } else {
+        const msg = data.mensaje || data.error || 'No se pudo enviar el correo.'
+        toast.error(msg)
+      }
+    } catch (e) {
+      console.error('Error enviando amortización por correo:', e)
+      toast.error('Error al enviar el correo. Intenta de nuevo.')
+    } finally {
+      setEnviandoEmail(false)
+    }
+  }
+
+  async function handleEnviarPorWhatsApp() {
+    if (!ventaId || !venta) return
+    setEnviandoWhatsApp(true)
+    try {
+      const session = await authService.getSession()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+      const res = await fetch('/api/enviar-amortizacion-whatsapp', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ venta_id: ventaId }),
+        credentials: 'include',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.enviado) {
+        toast.success('Amortización enviada por WhatsApp al cliente correctamente.')
+      } else {
+        const msg = data.error || data.mensaje || (res.status === 403 ? 'Activa WhatsApp en Conexión WhatsApp para enviar.' : 'No se pudo enviar por WhatsApp.')
+        toast.error(msg)
+      }
+    } catch (e) {
+      console.error('Error enviando amortización por WhatsApp:', e)
+      toast.error('Error al enviar por WhatsApp. Intenta de nuevo.')
+    } finally {
+      setEnviandoWhatsApp(false)
     }
   }
 
@@ -214,7 +291,7 @@ export default function AmortizacionPage() {
             Volver
           </Button>
         </div>
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-8 rounded-lg text-center">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center">
           <h2 className="text-xl font-semibold text-amber-900 mb-2">
             Amortización pendiente de aprobación
           </h2>
@@ -231,6 +308,13 @@ export default function AmortizacionPage() {
 
   const cliente = venta.cliente || null
   const motor = venta.motor || null
+
+  const fotosProductoUrls = (() => {
+    const raw = (motor as { urls_fotos?: unknown } | null)?.urls_fotos
+    if (raw == null) return [] as string[]
+    if (Array.isArray(raw)) return raw.filter((u): u is string => typeof u === 'string' && u.length > 0)
+    return [] as string[]
+  })()
 
   // Calcular fechas de pago según el tipo de plazo
   let fechasPago: Date[] = []
@@ -266,22 +350,47 @@ export default function AmortizacionPage() {
 
   // Nombres de los días de la semana
   const nombresDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+  // Nombre para impresión: solo desde BD o texto que no sea UUID
+  const displayNombreEmpresa =
+    nombreEmpresa ??
+    (userInfo?.compania && !isValidUUID(userInfo.compania) ? userInfo.compania : null) ??
+    'JasiCorporations'
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="no-print mb-4 flex justify-between items-center">
+      <div className="no-print mb-4 flex flex-wrap justify-between items-center gap-2">
         <Button variant="secondary" onClick={() => router.back()}>
           <ArrowLeft className="w-5 h-5 mr-2 inline" />
           Volver
         </Button>
-        <Button 
-          onClick={handlePrint}
-          type="button"
-          aria-label="Imprimir amortización"
-        >
-          <Printer className="w-5 h-5 mr-2 inline" />
-          Imprimir Amortización
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleEnviarPorCorreo}
+            type="button"
+            disabled={enviandoEmail}
+            aria-label="Enviar amortización por correo"
+          >
+            <Mail className="w-5 h-5 mr-2 inline" />
+            {enviandoEmail ? 'Enviando...' : 'Enviar por correo'}
+          </Button>
+          <Button
+            onClick={handleEnviarPorWhatsApp}
+            type="button"
+            disabled={enviandoWhatsApp}
+            aria-label="Enviar amortización por WhatsApp"
+          >
+            <MessageCircle className="w-5 h-5 mr-2 inline" />
+            {enviandoWhatsApp ? 'Enviando...' : 'Enviar por WhatsApp'}
+          </Button>
+          <Button
+            onClick={handlePrint}
+            type="button"
+            aria-label="Imprimir amortización"
+          >
+            <Printer className="w-5 h-5 mr-2 inline" />
+            Imprimir Amortización
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white shadow-lg p-8 print:shadow-none print:p-6">
@@ -290,10 +399,10 @@ export default function AmortizacionPage() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             JASICORPORATIONS
           </h1>
-          {userInfo && (
+          {(userInfo || displayNombreEmpresa) && (
             <div className="text-sm text-gray-600 space-y-1 mt-4">
-              {userInfo.compania && !/jasicorporation/i.test(userInfo.compania) && (
-                <p className="text-3xl font-bold text-gray-900 mb-2">{userInfo.compania}</p>
+              {displayNombreEmpresa && !/jasicorporation/i.test(displayNombreEmpresa) && (
+                <p className="text-3xl font-bold text-gray-900 mb-2">{displayNombreEmpresa}</p>
               )}
               {(userInfo.nombre || userInfo.apellido) && (
                 <p>
@@ -334,7 +443,7 @@ export default function AmortizacionPage() {
               {venta.valor_estimado != null && venta.valor_estimado > 0 && (
                 <div>
                   <p className="text-sm text-emerald-700">Valor Estimado:</p>
-                  <p className="font-medium">${venta.valor_estimado.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="font-medium">${formatCurrency(venta.valor_estimado)}</p>
                 </div>
               )}
               {venta.descripcion_garantia && (
@@ -373,23 +482,23 @@ export default function AmortizacionPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-600">Monto Base:</p>
-                <p className="font-semibold text-lg">${montoBase.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="font-semibold text-lg">${formatCurrency(montoBase)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Interés ({interesAplicado}%):</p>
-                <p className="font-semibold text-lg">${montoInteres.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="font-semibold text-lg">${formatCurrency(montoInteres)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Cargo por Manejo del Financiamiento ({porcentajeCargoManejo}%):</p>
-                <p className="font-semibold text-lg text-purple-600">${cargoManejo.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="font-semibold text-lg text-purple-600">${formatCurrency(cargoManejo)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Monto Total:</p>
-                <p className="font-bold text-xl text-green-600">${venta.monto_total.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="font-bold text-xl text-green-600">${formatCurrency(venta.monto_total)}</p>
               </div>
               <div className="col-span-2">
                 <p className="text-sm text-gray-600">Saldo a Financiar:</p>
-                <p className="font-bold text-xl text-blue-600">${saldoFinanciar.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="font-bold text-xl text-blue-600">${formatCurrency(saldoFinanciar)}</p>
               </div>
             </div>
           </div>
@@ -430,7 +539,7 @@ export default function AmortizacionPage() {
             <div>
               <p className="text-sm text-gray-600">Monto Financiado:</p>
               <p className="font-semibold text-lg">
-                ${montoFinanciado.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${formatCurrency(montoFinanciado)}
               </p>
             </div>
             <div>
@@ -440,13 +549,13 @@ export default function AmortizacionPage() {
             <div>
               <p className="text-sm text-gray-600">Total de Intereses:</p>
               <p className="font-semibold text-lg">
-                ${totalIntereses.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${formatCurrency(totalIntereses)}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Costo Total:</p>
               <p className="font-semibold text-lg">
-                ${totalCuotas.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${formatCurrency(totalCuotas)}
               </p>
             </div>
             <div>
@@ -454,62 +563,82 @@ export default function AmortizacionPage() {
               <p className="font-medium">{formatDateCustom(venta.fecha_venta, 'dd/MM/yyyy')}</p>
             </div>
           </div>
+
+          {fotosProductoUrls.length > 0 && (
+            <div className="no-print mt-4 border-t border-gray-100 pt-4">
+              <p className="text-sm font-medium text-gray-800 mb-2">Fotos del producto</p>
+              <div className="flex flex-wrap gap-2">
+                {fotosProductoUrls.map((url) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:opacity-90"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="h-24 w-24 object-cover sm:h-28 sm:w-28" loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tabla de Amortización */}
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Cronograma de Pagos</h3>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
+            <table className="min-w-full divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     #
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fecha
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Cuota
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Interés
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Capital
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Balance
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {cuotas.length > 0 ? (
                   cuotas.map((cuota, index) => (
                     <tr key={cuota.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-300">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                         {cuota.numero_cuota}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                         {formatDateCustom(cuota.fecha_pago, 'dd/MM/yyyy')}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-semibold border border-gray-300">
-                        ${Number(cuota.cuota_fija).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-semibold">
+                        ${formatCurrency(Number(cuota.cuota_fija))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border border-gray-300">
-                        ${Number(cuota.interes_mes).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                        ${formatCurrency(Number(cuota.interes_mes))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border border-gray-300">
-                        ${Number(cuota.abono_capital).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                        ${formatCurrency(Number(cuota.abono_capital))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border border-gray-300">
-                        ${Number(cuota.saldo_pendiente).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                        ${formatCurrency(Number(cuota.saldo_pendiente))}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500 border border-gray-300">
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
                       No hay cuotas detalladas registradas. Ejecuta el script SQL y vuelve a emitir el financiamiento.
                     </td>
                   </tr>
@@ -517,11 +646,11 @@ export default function AmortizacionPage() {
               </tbody>
               <tfoot className="bg-gray-100">
                 <tr>
-                  <td colSpan={5} className="px-4 py-3 text-sm font-bold text-gray-900 border border-gray-300">
+                  <td colSpan={5} className="px-4 py-3 text-sm font-bold text-gray-900">
                     TOTAL
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900 text-right border border-gray-300">
-                    ${totalCuotas.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
+                    ${formatCurrency(totalCuotas)}
                   </td>
                 </tr>
               </tfoot>
@@ -532,7 +661,7 @@ export default function AmortizacionPage() {
         {/* Pie de página */}
         <div className="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
           <p>Gracias por confiar en nosotros</p>
-          <p className="mt-2">{userInfo?.compania || 'JasiCorporations'}</p>
+          <p className="mt-2">{displayNombreEmpresa}</p>
           <p className="mt-1">Fecha de impresión: {formatDateCustom(new Date().toISOString(), 'dd/MM/yyyy')}</p>
         </div>
       </div>

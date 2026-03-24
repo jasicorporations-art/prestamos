@@ -45,7 +45,7 @@ export default function PrivacidadPage() {
         </div>
 
         {/* Contenido */}
-        <div className="bg-white rounded-lg shadow-lg p-8 space-y-8">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-8">
           {/* Introducción */}
           <section>
             <p className="text-gray-700 leading-relaxed">
